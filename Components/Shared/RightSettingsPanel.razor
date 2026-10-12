@@ -1,0 +1,307 @@
+@namespace ConfigManager.Components.Shared
+@using ConfigManager.Models
+
+<div class="settings-panel">
+    <!-- Category Tabs Navigation -->
+    <div class="category-header">
+        <div class="category-tabs">
+            <button class="cat-tab @(ActiveCategory == ConfigCategory.ConnectionStrings ? "active" : "")"
+                    @onclick="() => ActiveCategory = ConfigCategory.ConnectionStrings">
+                <span>Connection Strings</span>
+            </button>
+            <button class="cat-tab @(ActiveCategory == ConfigCategory.AppSettings ? "active" : "")"
+                    @onclick="() => ActiveCategory = ConfigCategory.AppSettings">
+                <span>App Settings</span>
+                <span class="cat-pill-badge">Soon</span>
+            </button>
+            <button class="cat-tab @(ActiveCategory == ConfigCategory.EnvironmentVariables ? "active" : "")"
+                    @onclick="() => ActiveCategory = ConfigCategory.EnvironmentVariables">
+                <span>Env Vars</span>
+                <span class="cat-pill-badge">Soon</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Category Content -->
+    @if (ActiveCategory == ConfigCategory.ConnectionStrings)
+    {
+        <div class="panel-scroll-content">
+            <!-- Mode Switcher: Structured Parameters vs Raw Find/Replace -->
+            <div class="submode-segment">
+                <button class="segment-btn @(EditMode == "structured" ? "active" : "")"
+                        @onclick='() => EditMode = "structured"'>
+                    Parameters (Host, DB, User)
+                </button>
+                <button class="segment-btn @(EditMode == "raw" ? "active" : "")"
+                        @onclick='() => EditMode = "raw"'>
+                    Raw Find &amp; Replace
+                </button>
+            </div>
+
+            @if (EditMode == "structured")
+            {
+                <!-- Structured Fields Form -->
+                <div class="structured-form-box">
+                    <div class="form-section-title">
+                        <span>Bulk Parameter Overrides</span>
+                        <span class="field-hint">Blank fields remain untouched</span>
+                    </div>
+
+                    <div class="param-field">
+                        <label class="param-label">
+                            <span class="param-name">Host / Server</span>
+                            <span class="param-alias">Data Source / Server / Host</span>
+                        </label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               placeholder="e.g. 192.168.1.50 or NEW-SRV-02"
+                               @bind="StructuredArgs.Server" />
+                    </div>
+
+                    <div class="param-field">
+                        <label class="param-label">
+                            <span class="param-name">Database</span>
+                            <span class="param-alias">Initial Catalog / Database</span>
+                        </label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               placeholder="e.g. SalesDatabase_Prod"
+                               @bind="StructuredArgs.Database" />
+                    </div>
+
+                    <div class="param-field">
+                        <label class="param-label">
+                            <span class="param-name">Username</span>
+                            <span class="param-alias">User ID / Username / Uid</span>
+                        </label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               placeholder="e.g. sa or app_db_user"
+                               @bind="StructuredArgs.UserId" />
+                    </div>
+
+                    <div class="param-field">
+                        <label class="param-label">
+                            <span class="param-name">Password</span>
+                            <span class="param-alias">Password / Pwd</span>
+                        </label>
+                        <div class="input-password-wrap">
+                            <input type="@(ShowPassword ? "text" : "password")"
+                                   class="form-control form-control-sm"
+                                   placeholder="Enter new password..."
+                                   @bind="StructuredArgs.Password" />
+                            <button type="button" class="btn-toggle-eye" @onclick="() => ShowPassword = !ShowPassword" title="Show/Hide">
+                                @(ShowPassword ? "Hide" : "Show")
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="param-actions-row">
+                        <button class="btn btn-primary btn-sm flex-1"
+                                @onclick="ApplyStructuredToSelected"
+                                disabled="@(IsStructuredEmpty || SelectedCount == 0)">
+                            Apply to @SelectedCount Selected
+                        </button>
+
+                        <button class="btn btn-outline btn-sm"
+                                @onclick="ClearStructuredFields"
+                                title="Clear input fields">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Raw Find & Replace Form -->
+                <div class="structured-form-box">
+                    <div class="form-section-title">
+                        <span>Global String Find &amp; Replace</span>
+                    </div>
+
+                    <div class="param-field">
+                        <label class="param-label">Find Text</label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               placeholder="Text to find..."
+                               @bind="RawFindText" />
+                    </div>
+
+                    <div class="param-field">
+                        <label class="param-label">Replace With</label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               placeholder="Replacement text..."
+                               @bind="RawReplaceWith" />
+                    </div>
+
+                    <label class="checkbox-label-compact mt-1">
+                        <input type="checkbox" @bind="MatchCase" />
+                        <span>Match case</span>
+                    </label>
+
+                    <div class="param-actions-row mt-2">
+                        <button class="btn btn-primary btn-sm flex-1"
+                                @onclick="ApplyRawToSelected"
+                                disabled="@(string.IsNullOrEmpty(RawFindText) || SelectedCount == 0)">
+                            Apply to @SelectedCount Selected
+                        </button>
+
+                        @if (ModifiedCount > 0)
+                        {
+                            <button class="btn btn-outline btn-sm" @onclick="OnResetPreview">
+                                Revert
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Active Selected Entry Live Inspector -->
+            <div class="active-entry-inspector">
+                <div class="inspector-header">
+                    <span>Active Selection Inspector</span>
+                    @if (ActiveEntry != null)
+                    {
+                        <span class="active-badge">@ActiveEntry.KeyName</span>
+                    }
+                </div>
+
+                @if (ActiveEntry != null)
+                {
+                    var parsed = ConnectionStringHelper.Parse(ActiveEntry.NewValue);
+
+                    <div class="inspector-details">
+                        <div class="inspector-meta-row">
+                            <span class="meta-label">File:</span>
+                            <span class="meta-val" title="@ActiveEntry.FilePath">@ActiveEntry.FileName</span>
+                        </div>
+
+                        <div class="inspector-params-list">
+                            <div class="param-row">
+                                <span class="p-key">Host:</span>
+                                <span class="p-val">@(parsed.Server ?? "(not specified)")</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="p-key">Database:</span>
+                                <span class="p-val">@(parsed.Database ?? "(not specified)")</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="p-key">User:</span>
+                                <span class="p-val">@(parsed.UserId ?? "(not specified)")</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="p-key">Password:</span>
+                                <span class="p-val">@(string.IsNullOrEmpty(parsed.Password) ? "(none)" : "••••••••")</span>
+                            </div>
+                        </div>
+
+                        <div class="inspector-actions">
+                            <button class="btn-xs btn-outline" @onclick="() => OnInspectModal.InvokeAsync(ActiveEntry)">
+                                Compare Full Diff
+                            </button>
+                            @if (ActiveEntry.Status == ConfigEntryStatus.Modified)
+                            {
+                                <button class="btn-xs btn-outline" @onclick="() => ActiveEntry.ResetPreview()">
+                                    Revert Entry
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-inspector">
+                        Click any row in the table to inspect and edit its parameters here.
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Right Panel Sticky Bottom Action -->
+        <div class="panel-bottom-dock">
+            <div class="dock-summary">
+                <span><strong>@ModifiedCount</strong> modified</span>
+                <span>&bull;</span>
+                <span><strong>@SelectedCount</strong> / @TotalCount selected</span>
+            </div>
+
+            <button class="btn btn-save w-full"
+                    @onclick="OnSaveAllClicked"
+                    disabled="@(ModifiedCount == 0 || IsSaving)">
+                @if (IsSaving)
+                {
+                    <span class="spinner-small"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save All Changes (@ModifiedCount)</span>
+                }
+            </button>
+        </div>
+    }
+    else if (ActiveCategory == ConfigCategory.AppSettings)
+    {
+        <div class="panel-scroll-content empty-category">
+            <div class="empty-icon-sm">⚙️</div>
+            <h4>App Settings Category</h4>
+            <p>Future modular category for key-value application settings, feature flags, and custom JSON nodes.</p>
+        </div>
+    }
+    else
+    {
+        <div class="panel-scroll-content empty-category">
+            <div class="empty-icon-sm">🌐</div>
+            <h4>Environment Variables Category</h4>
+            <p>Future modular category for container and runtime environment variable configurations.</p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public int SelectedCount { get; set; }
+    [Parameter] public int ModifiedCount { get; set; }
+    [Parameter] public ConnectionStringEntry? ActiveEntry { get; set; }
+    [Parameter] public bool IsSaving { get; set; }
+
+    [Parameter] public EventCallback<StructuredBulkUpdateArgs> OnApplyStructured { get; set; }
+    [Parameter] public EventCallback<(string find, string replace, bool matchCase)> OnApplyRaw { get; set; }
+    [Parameter] public EventCallback OnResetPreview { get; set; }
+    [Parameter] public EventCallback OnSaveAllClicked { get; set; }
+    [Parameter] public EventCallback<ConnectionStringEntry> OnInspectModal { get; set; }
+
+    private ConfigCategory ActiveCategory { get; set; } = ConfigCategory.ConnectionStrings;
+    private string EditMode { get; set; } = "structured"; // "structured" | "raw"
+
+    private StructuredBulkUpdateArgs StructuredArgs { get; set; } = new();
+    private bool ShowPassword { get; set; } = false;
+
+    private string RawFindText { get; set; } = string.Empty;
+    private string RawReplaceWith { get; set; } = string.Empty;
+    private bool MatchCase { get; set; } = false;
+
+    private bool IsStructuredEmpty =>
+        string.IsNullOrWhiteSpace(StructuredArgs.Server) &&
+        string.IsNullOrWhiteSpace(StructuredArgs.Database) &&
+        string.IsNullOrWhiteSpace(StructuredArgs.UserId) &&
+        string.IsNullOrWhiteSpace(StructuredArgs.Password);
+
+    private async Task ApplyStructuredToSelected()
+    {
+        if (IsStructuredEmpty) return;
+        await OnApplyStructured.InvokeAsync(StructuredArgs);
+    }
+
+    private void ClearStructuredFields()
+    {
+        StructuredArgs = new StructuredBulkUpdateArgs();
+    }
+
+    private async Task ApplyRawToSelected()
+    {
+        if (string.IsNullOrEmpty(RawFindText)) return;
+        await OnApplyRaw.InvokeAsync((RawFindText, RawReplaceWith, MatchCase));
+    }
+}

@@ -1,0 +1,214 @@
+@namespace ConfigManager.Components.Shared
+@using ConfigManager.Models
+
+@if (IsOpen && Entry != null)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal-container diff-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <div class="modal-badge">
+                        @(Entry.FileType == ConfigFileType.WebConfig ? "XML web.config" : "JSON appsettings")
+                    </div>
+                    <h3 class="modal-title">Inspect &amp; Compare: @Entry.KeyName</h3>
+                </div>
+                <button class="btn-close" @onclick="Close" title="Close">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="file-path-banner">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    <span>@Entry.FilePath</span>
+                </div>
+
+                <div class="diff-grid">
+                    <div class="diff-column">
+                        <div class="diff-column-header">
+                            <span class="text-neutral">Original Connection String (On Disk)</span>
+                            <button class="btn-icon-subtle" @onclick="() => CopyToClipboard(Entry.CurrentValue)" title="Copy Original">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="diff-content code-block original">
+                            @Entry.CurrentValue
+                        </div>
+                    </div>
+
+                    <div class="diff-column">
+                        <div class="diff-column-header">
+                            <span class="text-primary">Preview New Connection String</span>
+                            <button class="btn-icon-subtle" @onclick="() => CopyToClipboard(Entry.NewValue)" title="Copy New">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <textarea class="diff-textarea" @bind="EditedValue"></textarea>
+                    </div>
+                </div>
+
+                @if (ParsedParameters.Count > 0)
+                {
+                    <div class="diff-params-section">
+                        <h4 class="params-title">Parsed Parameters Breakdown</h4>
+                        <div class="params-table-wrap">
+                            <table class="params-table">
+                                <thead>
+                                    <tr>
+                                        <th>Parameter</th>
+                                        <th>Original Value</th>
+                                        <th>Preview Value</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var param in ParsedParameters)
+                                    {
+                                        <tr class="@(param.IsDifferent ? "param-modified" : "")">
+                                            <td class="param-key">@param.Key</td>
+                                            <td class="param-val">@param.OriginalValue</td>
+                                            <td class="param-val highlight">@param.PreviewValue</td>
+                                            <td>
+                                                @if (param.IsDifferent)
+                                                {
+                                                    <span class="badge badge-warning">Changed</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">Same</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="Close">Close</button>
+                <button class="btn btn-warning" @onclick="Revert">Revert to Original</button>
+                <button class="btn btn-primary" @onclick="SaveEdit">Update Preview</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public ConnectionStringEntry? Entry { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public EventCallback<ConnectionStringEntry> OnSaved { get; set; }
+    [Inject] public IJSRuntime JS { get; set; } = null!;
+
+    private string EditedValue { get; set; } = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (Entry != null)
+        {
+            EditedValue = Entry.NewValue;
+        }
+    }
+
+    private class ParamDiff
+    {
+        public string Key { get; set; } = string.Empty;
+        public string OriginalValue { get; set; } = string.Empty;
+        public string PreviewValue { get; set; } = string.Empty;
+        public bool IsDifferent => !string.Equals(OriginalValue, PreviewValue, StringComparison.Ordinal);
+    }
+
+    private List<ParamDiff> ParsedParameters
+    {
+        get
+        {
+            if (Entry == null) return new();
+            var orig = ParseParams(Entry.CurrentValue);
+            var prev = ParseParams(EditedValue);
+
+            var allKeys = orig.Keys.Union(prev.Keys, StringComparer.OrdinalIgnoreCase).ToList();
+            var list = new List<ParamDiff>();
+
+            foreach (var k in allKeys)
+            {
+                orig.TryGetValue(k, out var origVal);
+                prev.TryGetValue(k, out var prevVal);
+                list.Add(new ParamDiff
+                {
+                    Key = k,
+                    OriginalValue = origVal ?? "(not set)",
+                    PreviewValue = prevVal ?? "(not set)"
+                });
+            }
+
+            return list;
+        }
+    }
+
+    private Dictionary<string, string> ParseParams(string connStr)
+    {
+        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(connStr)) return dict;
+
+        var parts = connStr.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var p in parts)
+        {
+            var eqIdx = p.IndexOf('=');
+            if (eqIdx > 0)
+            {
+                var k = p.Substring(0, eqIdx).Trim();
+                var v = p.Substring(eqIdx + 1).Trim();
+                dict[k] = v;
+            }
+        }
+        return dict;
+    }
+
+    private async Task Close()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private void Revert()
+    {
+        if (Entry != null)
+        {
+            EditedValue = Entry.CurrentValue;
+        }
+    }
+
+    private async Task SaveEdit()
+    {
+        if (Entry != null)
+        {
+            Entry.ApplyPreview(EditedValue);
+            await OnSaved.InvokeAsync(Entry);
+            await Close();
+        }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch { }
+    }
+}

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ConfigManager</RootNamespace>
+    <AssemblyName>ConfigManager</AssemblyName>
+    
+    <!-- Default publish settings for portable single-file executable -->
+    <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">true</PublishSingleFile>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile Condition="'$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="9.0.40" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <Compile Remove="sample\**" />
+    <Compile Remove="sample_test_env\**" />
+    <Compile Remove="publish\**" />
+    <Content Remove="tests\**" />
+    <Content Remove="sample\**" />
+    <Content Remove="sample_test_env\**" />
+    <Content Remove="publish\**" />
+    <None Remove="tests\**" />
+    <None Remove="sample\**" />
+    <None Remove="sample_test_env\**" />
+    <None Remove="publish\**" />
+  </ItemGroup>
+
+</Project>

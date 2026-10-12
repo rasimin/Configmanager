@@ -1,0 +1,36 @@
+@namespace ConfigManager.Components.Shared
+@using ConfigManager.Models
+
+@if (Status == ConfigEntryStatus.Unchanged)
+{
+    <span class="badge badge-neutral" title="Current value matches disk">
+        <span class="badge-dot dot-neutral"></span>
+        Unchanged
+    </span>
+}
+else if (Status == ConfigEntryStatus.Modified)
+{
+    <span class="badge badge-warning" title="Value has pending changes to save">
+        <span class="badge-dot dot-warning"></span>
+        Modified
+    </span>
+}
+else if (Status == ConfigEntryStatus.Saved)
+{
+    <span class="badge badge-success" title="Changes successfully written to disk. Backup created.">
+        <span class="badge-dot dot-success"></span>
+        Saved
+    </span>
+}
+else if (Status == ConfigEntryStatus.Error)
+{
+    <span class="badge badge-danger" title="@ErrorMessage">
+        <span class="badge-dot dot-danger"></span>
+        Error
+    </span>
+}
+
+@code {
+    [Parameter] public ConfigEntryStatus Status { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+}

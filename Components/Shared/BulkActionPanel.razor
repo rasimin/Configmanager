@@ -1,0 +1,102 @@
+@namespace ConfigManager.Components.Shared
+
+<div class="bulk-toolbar">
+    <div class="toolbar-inputs">
+        <div class="input-with-label">
+            <span class="inline-label">Find</span>
+            <input type="text"
+                   class="form-control form-control-sm"
+                   placeholder="e.g. OLD-SRV-01"
+                   @bind="FindText"
+                   @bind:event="oninput"
+                   @onkeyup="HandleKeyUp" />
+        </div>
+
+        <span class="arrow-divider">&rarr;</span>
+
+        <div class="input-with-label">
+            <span class="inline-label">Replace</span>
+            <input type="text"
+                   class="form-control form-control-sm"
+                   placeholder="e.g. NEW-SRV-02"
+                   @bind="ReplaceWith"
+                   @bind:event="oninput"
+                   @onkeyup="HandleKeyUp" />
+        </div>
+
+        <label class="checkbox-label-compact" title="Case-sensitive match">
+            <input type="checkbox" @bind="MatchCase" />
+            <span>Match case</span>
+        </label>
+    </div>
+
+    <div class="toolbar-actions">
+        <span class="target-counter">
+            <strong>@SelectedCount</strong> selected
+            @if (ModifiedCount > 0)
+            {
+                <span class="text-warning">(&bull; @ModifiedCount modified)</span>
+            }
+        </span>
+
+        <button class="btn btn-primary btn-sm"
+                @onclick="HandleApply"
+                disabled="@(string.IsNullOrEmpty(FindText) || SelectedCount == 0)">
+            Apply to Selected
+        </button>
+
+        @if (ModifiedCount > 0)
+        {
+            <button class="btn btn-outline btn-sm"
+                    @onclick="HandleReset"
+                    title="Revert modified previews back to current values">
+                Revert
+            </button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(ValidationMessage))
+    {
+        <div class="validation-message-inline">
+            @ValidationMessage
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int SelectedCount { get; set; }
+    [Parameter] public int ModifiedCount { get; set; }
+    [Parameter] public EventCallback<(string find, string replace, bool matchCase)> OnApplyPreview { get; set; }
+    [Parameter] public EventCallback OnResetPreview { get; set; }
+
+    private string FindText { get; set; } = string.Empty;
+    private string ReplaceWith { get; set; } = string.Empty;
+    private bool MatchCase { get; set; } = false;
+    private string? ValidationMessage { get; set; }
+
+    private async Task HandleApply()
+    {
+        if (string.IsNullOrEmpty(FindText))
+        {
+            ValidationMessage = "Enter text to find.";
+            return;
+        }
+
+        ValidationMessage = null;
+        await OnApplyPreview.InvokeAsync((FindText, ReplaceWith, MatchCase));
+    }
+
+    private async Task HandleReset()
+    {
+        ValidationMessage = null;
+        await OnResetPreview.InvokeAsync();
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrEmpty(FindText) && SelectedCount > 0)
+        {
+            await HandleApply();
+        }
+    }
+}

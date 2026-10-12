@@ -1,0 +1,441 @@
+@page "/"
+@namespace ConfigManager.Components.Pages
+@using ConfigManager.Models
+@using ConfigManager.Services
+@inject IConfigScanService ScanService
+@inject IConfigParserService ParserService
+@inject IFolderPickerService FolderPicker
+
+<div class="workspace-layout">
+    <!-- Left Main Panel: Scanner & Table -->
+    <main class="workspace-main">
+        <!-- Minimalist Scanner Command Bar -->
+        <div class="scanner-bar">
+            <div class="scanner-input-wrap">
+                <svg class="scanner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text"
+                       class="scanner-input"
+                       placeholder="Enter folder or file path to scan (e.g. C:\inetpub\wwwroot or D:\Apps)..."
+                       @bind="InputPath"
+                       @bind:event="oninput"
+                       @onkeyup="HandleInputKeyUp" />
+            </div>
+
+            <div class="scanner-actions-group">
+                <button class="btn btn-secondary btn-scanner-action" @onclick="BrowseFolder" title="Browse target folder">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>Folder</span>
+                </button>
+
+                <button class="btn btn-secondary btn-scanner-action" @onclick="BrowseFiles" title="Browse specific config file(s)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                    <span>File(s)</span>
+                </button>
+
+                @if (!string.IsNullOrWhiteSpace(InputPath))
+                {
+                    <button class="btn btn-outline btn-scanner-action" @onclick="AddPathToList" title="Add path to multi-target queue">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Add</span>
+                    </button>
+                }
+
+                <div class="scanner-separator"></div>
+
+                <label class="checkbox-label-compact" title="Search all subfolders recursively">
+                    <input type="checkbox" @bind="IsRecursive" />
+                    <span>Recursive</span>
+                </label>
+
+                <button class="btn btn-primary btn-scanner-action" @onclick="StartScanAsync" disabled="@IsScanning">
+                    @if (IsScanning)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>Scanning...</span>
+                    }
+                    else
+                    {
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        <span>Scan</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        @if (TargetPaths.Count > 1)
+        {
+            <div class="target-paths-list">
+                <span class="target-paths-title">Queue:</span>
+                @foreach (var p in TargetPaths)
+                {
+                    <div class="target-path-pill">
+                        <span class="pill-text" title="@p">@p</span>
+                        <button class="pill-remove" @onclick="() => RemovePath(p)">&times;</button>
+                    </div>
+                }
+                <button class="btn-xs btn-outline" @onclick="() => TargetPaths.Clear()">Clear</button>
+            </div>
+        }
+
+        @if (IsScanning || !string.IsNullOrEmpty(ScanProgressMessage))
+        {
+            <div class="scan-status-line">
+                @if (IsScanning)
+                {
+                    <span class="spinner-small"></span>
+                }
+                <span>@ScanProgressMessage</span>
+            </div>
+        }
+
+        <!-- Table of Results -->
+        <ConfigTable Entries="@Entries"
+                     ActiveEntry="@ActiveEntry"
+                     OnRowSelected="HandleRowSelected"
+                     OnInspectEntry="HandleInspectEntry"
+                     OnRevertEntry="HandleRevertEntry"
+                     OnOpenFolder="HandleOpenFolder"
+                     OnSelectionChanged="HandleSelectionChanged" />
+    </main>
+
+    <!-- Right Inspector & Settings Panel -->
+    <aside class="workspace-sidebar">
+        <RightSettingsPanel TotalCount="@Entries.Count"
+                            SelectedCount="@SelectedCount"
+                            ModifiedCount="@ModifiedCount"
+                            ActiveEntry="@ActiveEntry"
+                            IsSaving="@IsSaving"
+                            OnApplyStructured="HandleApplyStructured"
+                            OnApplyRaw="HandleApplyBulkPreview"
+                            OnResetPreview="HandleResetPreviews"
+                            OnSaveAllClicked="OpenSaveConfirmation"
+                            OnInspectModal="HandleInspectEntry" />
+    </aside>
+
+    <!-- Modals -->
+    <ConfirmSaveModal @bind-IsOpen="IsSaveModalOpen"
+                      Details="@SaveDetails"
+                      IsSaving="@IsSaving"
+                      OnConfirmSave="ExecuteBatchSave" />
+
+    <DiffModal @bind-IsOpen="IsDiffModalOpen"
+               Entry="@ActiveDiffEntry"
+               OnSaved="HandleDiffEntrySaved" />
+
+    <!-- Success Toast Alert -->
+    @if (LastBatchResult != null)
+    {
+        <div class="toast-notification @(LastBatchResult.Success ? "toast-success" : "toast-error")">
+            <div class="toast-icon">
+                @if (LastBatchResult.Success)
+                {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                }
+                else
+                {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                    </svg>
+                }
+            </div>
+            <div class="toast-body">
+                <strong>@(LastBatchResult.Success ? "Save Succeeded" : "Errors Occurred")</strong>
+                <p>Saved @LastBatchResult.EntriesSaved string(s) across @LastBatchResult.FilesSaved file(s).</p>
+                @if (LastBatchResult.BackupsCreated.Count > 0)
+                {
+                    <div class="toast-backups">
+                        <span>Backups:</span>
+                        @foreach (var bak in LastBatchResult.BackupsCreated.Take(2))
+                        {
+                            <code>@System.IO.Path.GetFileName(bak)</code>
+                        }
+                    </div>
+                }
+            </div>
+            <button class="toast-close" @onclick="() => LastBatchResult = null">&times;</button>
+        </div>
+    }
+</div>
+
+@code {
+    private string InputPath { get; set; } = string.Empty;
+    private HashSet<string> TargetPaths { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    private bool IsRecursive { get; set; } = true;
+    private bool IsScanning { get; set; } = false;
+    private string ScanProgressMessage { get; set; } = string.Empty;
+
+    private List<ConnectionStringEntry> Entries { get; set; } = new();
+    private ConnectionStringEntry? ActiveEntry { get; set; }
+
+    private bool IsSaveModalOpen { get; set; } = false;
+    private bool IsSaving { get; set; } = false;
+    private SaveConfirmationDetails SaveDetails { get; set; } = new();
+    private SaveBatchResult? LastBatchResult { get; set; }
+
+    private bool IsDiffModalOpen { get; set; } = false;
+    private ConnectionStringEntry? ActiveDiffEntry { get; set; }
+
+    private int SelectedCount => Entries.Count(e => e.IsSelected);
+    private int ModifiedCount => Entries.Count(e => e.Status == ConfigEntryStatus.Modified);
+    private int SavedCount => Entries.Count(e => e.Status == ConfigEntryStatus.Saved);
+    private int AffectedFilesCount => Entries.Where(e => e.Status == ConfigEntryStatus.Modified)
+                                             .Select(e => e.FilePath)
+                                             .Distinct(StringComparer.OrdinalIgnoreCase)
+                                             .Count();
+
+    protected override void OnInitialized()
+    {
+        InputPath = Environment.CurrentDirectory;
+    }
+
+    private async Task BrowseFolder()
+    {
+        var picked = await FolderPicker.PickFolderAsync(InputPath);
+        if (!string.IsNullOrWhiteSpace(picked))
+        {
+            InputPath = picked;
+            TargetPaths.Add(picked);
+            await StartScanAsync();
+        }
+    }
+
+    private async Task BrowseFiles()
+    {
+        var files = await FolderPicker.PickFilesAsync(InputPath);
+        if (files != null && files.Length > 0)
+        {
+            foreach (var f in files)
+            {
+                TargetPaths.Add(f);
+            }
+            InputPath = Path.GetDirectoryName(files[0]) ?? files[0];
+            await StartScanAsync();
+        }
+    }
+
+    private void AddPathToList()
+    {
+        if (!string.IsNullOrWhiteSpace(InputPath))
+        {
+            TargetPaths.Add(InputPath.Trim());
+        }
+    }
+
+    private void RemovePath(string path)
+    {
+        TargetPaths.Remove(path);
+    }
+
+    private async Task HandleInputKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await StartScanAsync();
+        }
+    }
+
+    private async Task StartScanAsync()
+    {
+        if (IsScanning) return;
+
+        var pathsToScan = new HashSet<string>(TargetPaths, StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(InputPath))
+        {
+            pathsToScan.Add(InputPath.Trim());
+        }
+
+        if (pathsToScan.Count == 0)
+        {
+            ScanProgressMessage = "Please specify a folder path or file to scan.";
+            return;
+        }
+
+        IsScanning = true;
+        ScanProgressMessage = "Scanning for config files...";
+        StateHasChanged();
+
+        var progress = new Progress<string>(msg =>
+        {
+            ScanProgressMessage = msg;
+            StateHasChanged();
+        });
+
+        try
+        {
+            var scanned = await ScanService.ScanPathsAsync(pathsToScan, IsRecursive, progress);
+            Entries = scanned;
+            ActiveEntry = Entries.FirstOrDefault();
+
+            int fileCount = Entries.Select(e => e.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            ScanProgressMessage = $"Loaded {Entries.Count} connection string(s) from {fileCount} file(s).";
+        }
+        catch (Exception ex)
+        {
+            ScanProgressMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsScanning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleRowSelected(ConnectionStringEntry entry)
+    {
+        ActiveEntry = entry;
+    }
+
+    private void HandleApplyStructured(StructuredBulkUpdateArgs args)
+    {
+        int changedCount = 0;
+        foreach (var entry in Entries.Where(e => e.IsSelected))
+        {
+            var updated = ConnectionStringHelper.UpdateComponents(entry.CurrentValue, args);
+            if (!string.Equals(updated, entry.CurrentValue, StringComparison.Ordinal))
+            {
+                entry.ApplyPreview(updated);
+                changedCount++;
+            }
+        }
+
+        ScanProgressMessage = $"Parameters updated for {changedCount} selected connection string(s).";
+    }
+
+    private void HandleApplyBulkPreview((string find, string replace, bool matchCase) args)
+    {
+        var comparison = args.matchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        int changedCount = 0;
+
+        foreach (var entry in Entries.Where(e => e.IsSelected))
+        {
+            if (entry.CurrentValue.Contains(args.find, comparison))
+            {
+                string updated;
+                if (args.matchCase)
+                {
+                    updated = entry.CurrentValue.Replace(args.find, args.replace);
+                }
+                else
+                {
+                    updated = System.Text.RegularExpressions.Regex.Replace(
+                        entry.CurrentValue,
+                        System.Text.RegularExpressions.Regex.Escape(args.find),
+                        args.replace,
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                }
+
+                entry.ApplyPreview(updated);
+                changedCount++;
+            }
+        }
+
+        ScanProgressMessage = $"Updated preview for {changedCount} selected connection string(s).";
+    }
+
+    private void HandleResetPreviews()
+    {
+        int resetCount = 0;
+        foreach (var entry in Entries)
+        {
+            if (entry.Status == ConfigEntryStatus.Modified)
+            {
+                entry.ResetPreview();
+                resetCount++;
+            }
+        }
+        ScanProgressMessage = $"Reverted {resetCount} preview(s) back to original values.";
+    }
+
+    private void HandleInspectEntry(ConnectionStringEntry entry)
+    {
+        ActiveDiffEntry = entry;
+        IsDiffModalOpen = true;
+    }
+
+    private void HandleRevertEntry(ConnectionStringEntry entry)
+    {
+        entry.ResetPreview();
+    }
+
+    private void HandleOpenFolder(string filePath)
+    {
+        FolderPicker.OpenFolderInExplorer(filePath);
+    }
+
+    private void HandleSelectionChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void HandleDiffEntrySaved(ConnectionStringEntry entry)
+    {
+        StateHasChanged();
+    }
+
+    private void OpenSaveConfirmation()
+    {
+        var modified = Entries.Where(e => e.Status == ConfigEntryStatus.Modified).ToList();
+        if (modified.Count == 0) return;
+
+        var files = modified.Select(e => e.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        SaveDetails = new SaveConfirmationDetails
+        {
+            TotalFiles = files.Count,
+            TotalEntries = modified.Count,
+            AffectedFiles = files,
+            EntriesToSave = modified
+        };
+
+        IsSaveModalOpen = true;
+    }
+
+    private async Task ExecuteBatchSave()
+    {
+        if (IsSaving || SaveDetails.EntriesToSave.Count == 0) return;
+
+        IsSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await ScanService.SaveBatchAsync(SaveDetails.EntriesToSave);
+            LastBatchResult = result;
+            IsSaveModalOpen = false;
+
+            ScanProgressMessage = $"Saved {result.FilesSaved} file(s) and {result.EntriesSaved} connection string(s)!";
+        }
+        catch (Exception ex)
+        {
+            LastBatchResult = new SaveBatchResult
+            {
+                Errors = new List<string> { ex.Message }
+            };
+        }
+        finally
+        {
+            IsSaving = false;
+            StateHasChanged();
+        }
+    }
+}

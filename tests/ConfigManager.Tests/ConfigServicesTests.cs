@@ -525,5 +525,16 @@ public class ConfigServicesTests
         Assert.Equal("http://192.168.26.21/VICTOR/SSO/api/v1.svc", ssoJsonApiEntry.NewValue);
         Assert.Equal("http://localhost/VICTOR/Payment/Pay.svc", otherEndpointEntry.NewValue);
     }
+
+    [Fact]
+    public void EmbeddedResources_ContainsWwwrootFiles()
+    {
+        var asm = typeof(App).Assembly;
+        var names = asm.GetManifestResourceNames();
+
+        Assert.Contains(names, n => n.EndsWith("index.html", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(names, n => n.EndsWith("app.css", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(names, n => n.EndsWith("app.js", StringComparison.OrdinalIgnoreCase));
+    }
 }
 

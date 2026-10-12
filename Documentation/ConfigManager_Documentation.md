@@ -22,8 +22,9 @@ D:\Rasimin\Learn\SetConfigNetCore\
 ├── ConfigManager.sln                         # Visual Studio Solution File
 ├── ConfigManager.csproj                      # Konfigurasi Project & Single-File Publish
 ├── nuget.config                              # Konfigurasi feed NuGet (nuget.org)
+├── publish.bat                               # Skrip Batch 1-Click Publish Portable Executable (.exe murni)
+├── publish-portable.bat                      # Skrip Windows Batch 1-click build portable
 ├── publish-portable.ps1                      # Skrip PowerShell build & publish portable
-├── publish-portable.bat                      # Skrip Windows Batch 1-click build
 ├── App.xaml / App.xaml.cs                    # Entry point WPF & Dependency Injection
 ├── MainWindow.xaml / MainWindow.xaml.cs      # Host Window WPF & BlazorWebView
 │

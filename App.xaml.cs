@@ -36,7 +36,74 @@ public partial class App : Application
         // Register Global Exception Handlers
         SetupExceptionHandling();
 
+        // Ensure static web assets exist on disk (unpacks from embedded resources if standalone exe)
+        EnsureWebAssets();
+
         _logger.LogInfo("ConfigManager Application Started Successfully.");
+    }
+
+    private static void EnsureWebAssets()
+    {
+        try
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var wwwrootDir = Path.Combine(baseDir, "wwwroot");
+            var indexPath = Path.Combine(wwwrootDir, "index.html");
+
+            if (File.Exists(indexPath))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(wwwrootDir);
+
+            var asm = typeof(App).Assembly;
+            var resourceNames = asm.GetManifestResourceNames();
+
+            foreach (var resName in resourceNames)
+            {
+                const string prefix = "ConfigManager.wwwroot.";
+                if (!resName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var relativePath = resName.Substring(prefix.Length);
+                string targetSubPath;
+                if (relativePath.StartsWith("css.", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetSubPath = Path.Combine("css", relativePath.Substring(4));
+                }
+                else if (relativePath.StartsWith("js.", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetSubPath = Path.Combine("js", relativePath.Substring(3));
+                }
+                else
+                {
+                    targetSubPath = relativePath;
+                }
+
+                var fullTargetPath = Path.Combine(wwwrootDir, targetSubPath);
+                var parentDir = Path.GetDirectoryName(fullTargetPath);
+                if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
+                {
+                    Directory.CreateDirectory(parentDir);
+                }
+
+                using var stream = asm.GetManifestResourceStream(resName);
+                if (stream != null)
+                {
+                    using var fileStream = File.Create(fullTargetPath);
+                    stream.CopyTo(fileStream);
+                }
+            }
+
+            _logger?.LogInfo("Web assets automatically extracted from embedded resources.");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError("Gagal mengekstrak web assets: " + ex.Message, ex);
+        }
     }
 
     private void SetupExceptionHandling()

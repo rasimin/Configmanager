@@ -30,6 +30,10 @@ D:\Rasimin\Learn\SetConfigNetCore\
 ├── Models/
 │   └── ConfigModels.cs                       # Model data ConnectionStringEntry, enums & results
 │
+├── Assets/
+│   ├── app.ico                               # Windows Icon multi-resolusi (256, 128, 64, 48, 32, 16 px)
+│   └── app.png                               # Master high-res transparent PNG (512x512 px)
+│
 ├── Services/
 │   ├── LoggerService.cs                      # Logging & Error Tracing persistent log file
 │   ├── ConfigParserService.cs                # Engine parser XML (XDocument) & JSON (JsonNode) + Backup

@@ -275,42 +275,48 @@ public class ConfigServicesTests
     [Fact]
     public void ParseAppSettingsJson_ExtractsSSOLibEndpointsAndConnectionStrings()
     {
-        var sampleJsonPath = Path.Combine(Directory.GetCurrentDirectory(), "sample", "angenttree", "appsettings.json");
-        if (!File.Exists(sampleJsonPath))
+        var tempDir = Path.Combine(Path.GetTempPath(), "ConfigManager_Test_Parse_Json_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var sampleJsonPath = Path.Combine(tempDir, "appsettings.json");
+
+        try
         {
-            // Fallback to relative test directory
-            var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (currentDir != null)
+            var jsonContent = @"{
+  ""ConnectionStrings"": {
+    ""DefaultConnection"": ""Server=192.168.26.21;Database=DbAgentTree;User Id=sa;Password=secret;""
+  },
+  ""SSOLibConfigs"": {
+    ""SSOLib_SvcEndPoint"": ""http://192.168.69.26/DEV_SSO/Service/SSO.asmx"",
+    ""SSOLib_ApiEndPoint"": ""http://192.168.69.26/DEV_SSO/api/v1.svc""
+  }
+}";
+            File.WriteAllText(sampleJsonPath, jsonContent);
+
+            var entries = _parserService.ParseFile(sampleJsonPath);
+
+            // 1 Connection String: DefaultConnection
+            var conn = entries.FirstOrDefault(e => e.Category == ConfigCategory.ConnectionStrings);
+            Assert.NotNull(conn);
+            Assert.Equal("DefaultConnection", conn.KeyName);
+
+            // 2 Client Endpoints: SSOLib_SvcEndPoint & SSOLib_ApiEndPoint
+            var svcEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOLib_SvcEndPoint" && e.Category == ConfigCategory.ClientEndpoints);
+            Assert.NotNull(svcEndpoint);
+            Assert.Equal("http://192.168.69.26/DEV_SSO/Service/SSO.asmx", svcEndpoint.CurrentValue);
+            Assert.Equal("SSOLibConfigs", svcEndpoint.ProviderName);
+
+            var apiEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOLib_ApiEndPoint" && e.Category == ConfigCategory.ClientEndpoints);
+            Assert.NotNull(apiEndpoint);
+            Assert.Equal("http://192.168.69.26/DEV_SSO/api/v1.svc", apiEndpoint.CurrentValue);
+            Assert.Equal("SSOLibConfigs", apiEndpoint.ProviderName);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
             {
-                var candidate = Path.Combine(currentDir.FullName, "sample", "angenttree", "appsettings.json");
-                if (File.Exists(candidate))
-                {
-                    sampleJsonPath = candidate;
-                    break;
-                }
-                currentDir = currentDir.Parent;
+                Directory.Delete(tempDir, true);
             }
         }
-
-        Assert.True(File.Exists(sampleJsonPath), $"Sample file not found: {sampleJsonPath}");
-
-        var entries = _parserService.ParseFile(sampleJsonPath);
-
-        // 1 Connection String: DefaultConnection
-        var conn = entries.FirstOrDefault(e => e.Category == ConfigCategory.ConnectionStrings);
-        Assert.NotNull(conn);
-        Assert.Equal("DefaultConnection", conn.KeyName);
-
-        // 2 Client Endpoints: SSOLib_SvcEndPoint & SSOLib_ApiEndPoint
-        var svcEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOLib_SvcEndPoint" && e.Category == ConfigCategory.ClientEndpoints);
-        Assert.NotNull(svcEndpoint);
-        Assert.Equal("http://192.168.69.26/DEV_SSO/Service/SSO.asmx", svcEndpoint.CurrentValue);
-        Assert.Equal("SSOLibConfigs", svcEndpoint.ProviderName);
-
-        var apiEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOLib_ApiEndPoint" && e.Category == ConfigCategory.ClientEndpoints);
-        Assert.NotNull(apiEndpoint);
-        Assert.Equal("http://192.168.69.26/DEV_SSO/api/v1.svc", apiEndpoint.CurrentValue);
-        Assert.Equal("SSOLibConfigs", apiEndpoint.ProviderName);
     }
 
     [Fact]

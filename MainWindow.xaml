@@ -4,6 +4,7 @@
         xmlns:blazor="clr-namespace:Microsoft.AspNetCore.Components.WebView.Wpf;assembly=Microsoft.AspNetCore.Components.WebView.Wpf"
         xmlns:components="clr-namespace:ConfigManager.Components"
         Title="ConfigManager - Bulk Connection String Editor (.NET 9)"
+        Icon="Assets/app.ico"
         Height="900" Width="1440"
         MinHeight="650" MinWidth="1050"
         Background="#FCFCF9"

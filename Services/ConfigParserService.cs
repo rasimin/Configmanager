@@ -62,36 +62,75 @@ public class ConfigParserService : IConfigParserService
         var encoding = DetectEncoding(filePath);
         var xDoc = XDocument.Load(filePath, LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo);
 
-        var csElement = xDoc.Descendants()
-            .FirstOrDefault(e => e.Name.LocalName.Equals("connectionStrings", StringComparison.OrdinalIgnoreCase));
+        var connEntries = entriesToUpdate.Where(e => e.Category == ConfigCategory.ConnectionStrings).ToList();
+        var endpointEntries = entriesToUpdate.Where(e => e.Category == ConfigCategory.ClientEndpoints).ToList();
 
-        if (csElement == null)
+        // 1. Update Connection Strings
+        if (connEntries.Count > 0)
         {
-            throw excitingInvalidOperationException($"No <connectionStrings> section found in {filePath}");
+            var csElement = xDoc.Descendants()
+                .FirstOrDefault(e => e.Name.LocalName.Equals("connectionStrings", StringComparison.OrdinalIgnoreCase));
+
+            if (csElement != null)
+            {
+                var updateMap = connEntries.ToDictionary(e => e.KeyName, e => e.NewValue, StringComparer.OrdinalIgnoreCase);
+
+                var addElements = csElement.Elements()
+                    .Where(e => e.Name.LocalName.Equals("add", StringComparison.OrdinalIgnoreCase));
+
+                foreach (var add in addElements)
+                {
+                    var nameAttr = add.Attributes()
+                        .FirstOrDefault(a => a.Name.LocalName.Equals("name", StringComparison.OrdinalIgnoreCase));
+
+                    if (nameAttr != null && updateMap.TryGetValue(nameAttr.Value, out var newConnStr))
+                    {
+                        var connStrAttr = add.Attributes()
+                            .FirstOrDefault(a => a.Name.LocalName.Equals("connectionString", StringComparison.OrdinalIgnoreCase));
+
+                        if (connStrAttr != null)
+                        {
+                            connStrAttr.Value = newConnStr;
+                        }
+                        else
+                        {
+                            add.SetAttributeValue("connectionString", newConnStr);
+                        }
+                    }
+                }
+            }
         }
 
-        var updateMap = entriesToUpdate.ToDictionary(e => e.KeyName, e => e.NewValue, StringComparer.OrdinalIgnoreCase);
-
-        var addElements = csElement.Elements()
-            .Where(e => e.Name.LocalName.Equals("add", StringComparison.OrdinalIgnoreCase));
-
-        foreach (var add in addElements)
+        // 2. Update Client / Service Endpoints (<system.serviceModel><client><endpoint address="..." />)
+        if (endpointEntries.Count > 0)
         {
-            var nameAttr = add.Attributes()
-                .FirstOrDefault(a => a.Name.LocalName.Equals("name", StringComparison.OrdinalIgnoreCase));
+            var epUpdateMap = endpointEntries.ToDictionary(e => e.KeyName, e => e.NewValue, StringComparer.OrdinalIgnoreCase);
 
-            if (nameAttr != null && updateMap.TryGetValue(nameAttr.Value, out var newConnStr))
+            var endpointElements = xDoc.Descendants()
+                .Where(e => e.Name.LocalName.Equals("endpoint", StringComparison.OrdinalIgnoreCase) &&
+                            e.Parent != null && e.Parent.Name.LocalName.Equals("client", StringComparison.OrdinalIgnoreCase));
+
+            foreach (var ep in endpointElements)
             {
-                var connStrAttr = add.Attributes()
-                    .FirstOrDefault(a => a.Name.LocalName.Equals("connectionString", StringComparison.OrdinalIgnoreCase));
+                var nameAttr = ep.Attributes()
+                    .FirstOrDefault(a => a.Name.LocalName.Equals("name", StringComparison.OrdinalIgnoreCase));
+                var contractAttr = ep.Attributes()
+                    .FirstOrDefault(a => a.Name.LocalName.Equals("contract", StringComparison.OrdinalIgnoreCase));
 
-                if (connStrAttr != null)
+                var keyName = nameAttr?.Value ?? contractAttr?.Value;
+                if (keyName != null && epUpdateMap.TryGetValue(keyName, out var newAddress))
                 {
-                    connStrAttr.Value = newConnStr;
-                }
-                else
-                {
-                    add.SetAttributeValue("connectionString", newConnStr);
+                    var addressAttr = ep.Attributes()
+                        .FirstOrDefault(a => a.Name.LocalName.Equals("address", StringComparison.OrdinalIgnoreCase));
+
+                    if (addressAttr != null)
+                    {
+                        addressAttr.Value = newAddress;
+                    }
+                    else
+                    {
+                        ep.SetAttributeValue("address", newAddress);
+                    }
                 }
             }
         }
@@ -118,22 +157,76 @@ public class ConfigParserService : IConfigParserService
             throw new InvalidOperationException($"Invalid JSON root object in {filePath}");
         }
 
-        // Find ConnectionStrings property case-insensitively
-        var csKey = rootObj.Select(p => p.Key)
-            .FirstOrDefault(k => k.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase));
+        var updateList = entriesToUpdate.ToList();
 
-        if (csKey == null || rootObj[csKey] is not JsonObject csObj)
+        // 1. Update ConnectionStrings entries
+        var csEntries = updateList.Where(e => e.Category == ConfigCategory.ConnectionStrings).ToList();
+        if (csEntries.Count > 0)
         {
-            throw new InvalidOperationException($"No ConnectionStrings object found in {filePath}");
+            var csKey = rootObj.Select(p => p.Key)
+                .FirstOrDefault(k => k.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase));
+
+            if (csKey != null && rootObj[csKey] is JsonObject csObj)
+            {
+                foreach (var entry in csEntries)
+                {
+                    var existingKey = csObj.Select(p => p.Key)
+                        .FirstOrDefault(k => k.Equals(entry.KeyName, StringComparison.OrdinalIgnoreCase)) ?? entry.KeyName;
+
+                    csObj[existingKey] = JsonValue.Create(entry.NewValue);
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException($"No ConnectionStrings object found in {filePath}");
+            }
         }
 
-        foreach (var entry in entriesToUpdate)
+        // 2. Update ClientEndpoints / Service URLs (e.g. SSOLibConfigs, Endpoints)
+        var otherEntries = updateList.Where(e => e.Category != ConfigCategory.ConnectionStrings).ToList();
+        foreach (var entry in otherEntries)
         {
-            // Case-insensitive match within ConnectionStrings
-            var existingKey = csObj.Select(p => p.Key)
-                .FirstOrDefault(k => k.Equals(entry.KeyName, StringComparison.OrdinalIgnoreCase)) ?? entry.KeyName;
+            bool updated = false;
 
-            csObj[existingKey] = JsonValue.Create(entry.NewValue);
+            // Method A: Follow JsonPath if present
+            if (!string.IsNullOrEmpty(entry.JsonPath))
+            {
+                var segments = entry.JsonPath.Split(':');
+                JsonObject? curObj = rootObj;
+
+                for (int i = 0; i < segments.Length - 1; i++)
+                {
+                    var seg = segments[i];
+                    var matchingKey = curObj?.Select(p => p.Key)
+                        .FirstOrDefault(k => k.Equals(seg, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchingKey != null && curObj?[matchingKey] is JsonObject nextObj)
+                    {
+                        curObj = nextObj;
+                    }
+                    else
+                    {
+                        curObj = null;
+                        break;
+                    }
+                }
+
+                if (curObj != null)
+                {
+                    var targetKey = segments[^1];
+                    var existingKey = curObj.Select(p => p.Key)
+                        .FirstOrDefault(k => k.Equals(targetKey, StringComparison.OrdinalIgnoreCase)) ?? targetKey;
+
+                    curObj[existingKey] = JsonValue.Create(entry.NewValue);
+                    updated = true;
+                }
+            }
+
+            // Method B: Fallback recursive search if JsonPath wasn't resolved
+            if (!updated)
+            {
+                UpdateJsonNodeRecursive(rootObj, entry.KeyName, entry.NewValue);
+            }
         }
 
         var jsonOptions = new JsonSerializerOptions
@@ -152,6 +245,8 @@ public class ConfigParserService : IConfigParserService
         try
         {
             var xDoc = XDocument.Load(filePath, LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo);
+
+            // 1. Parse <connectionStrings>
             var csElement = xDoc.Descendants()
                 .FirstOrDefault(e => e.Name.LocalName.Equals("connectionStrings", StringComparison.OrdinalIgnoreCase));
 
@@ -176,6 +271,7 @@ public class ConfigParserService : IConfigParserService
                         {
                             FilePath = filePath,
                             FileType = ConfigFileType.WebConfig,
+                            Category = ConfigCategory.ConnectionStrings,
                             KeyName = nameAttr.Value,
                             ProviderName = providerAttr?.Value,
                             CurrentValue = connStr,
@@ -186,6 +282,45 @@ public class ConfigParserService : IConfigParserService
                     }
                 }
             }
+
+            // 2. Parse <system.serviceModel><client><endpoint address="..." />
+            var endpointElements = xDoc.Descendants()
+                .Where(e => e.Name.LocalName.Equals("endpoint", StringComparison.OrdinalIgnoreCase) &&
+                            e.Parent != null && e.Parent.Name.LocalName.Equals("client", StringComparison.OrdinalIgnoreCase));
+
+            foreach (var ep in endpointElements)
+            {
+                var addressAttr = ep.Attributes()
+                    .FirstOrDefault(a => a.Name.LocalName.Equals("address", StringComparison.OrdinalIgnoreCase));
+                var nameAttr = ep.Attributes()
+                    .FirstOrDefault(a => a.Name.LocalName.Equals("name", StringComparison.OrdinalIgnoreCase));
+                var contractAttr = ep.Attributes()
+                    .FirstOrDefault(a => a.Name.LocalName.Equals("contract", StringComparison.OrdinalIgnoreCase));
+                var bindingAttr = ep.Attributes()
+                    .FirstOrDefault(a => a.Name.LocalName.Equals("binding", StringComparison.OrdinalIgnoreCase));
+
+                if (addressAttr != null && !string.IsNullOrWhiteSpace(addressAttr.Value))
+                {
+                    var keyName = nameAttr?.Value;
+                    if (string.IsNullOrWhiteSpace(keyName))
+                    {
+                        keyName = contractAttr?.Value ?? "Endpoint";
+                    }
+
+                    list.Add(new ConnectionStringEntry
+                    {
+                        FilePath = filePath,
+                        FileType = ConfigFileType.WebConfig,
+                        Category = ConfigCategory.ClientEndpoints,
+                        KeyName = keyName,
+                        ProviderName = bindingAttr?.Value ?? contractAttr?.Value,
+                        CurrentValue = addressAttr.Value,
+                        NewValue = addressAttr.Value,
+                        IsSelected = true,
+                        Status = ConfigEntryStatus.Unchanged
+                    });
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -193,6 +328,7 @@ public class ConfigParserService : IConfigParserService
             {
                 FilePath = filePath,
                 FileType = ConfigFileType.WebConfig,
+                Category = ConfigCategory.ConnectionStrings,
                 KeyName = "[Parse Error]",
                 CurrentValue = string.Empty,
                 NewValue = string.Empty,
@@ -204,6 +340,21 @@ public class ConfigParserService : IConfigParserService
 
         return list;
     }
+
+    private static readonly HashSet<string> KnownEndpointSectionKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ssolibconfigs",
+        "ssoconfigs",
+        "sso",
+        "endpoints",
+        "clientendpoints",
+        "serviceendpoints",
+        "services",
+        "wcfservices",
+        "wcfendpoints",
+        "apiservices",
+        "apiendpoints"
+    };
 
     private List<ConnectionStringEntry> ParseAppSettings(string filePath)
     {
@@ -222,6 +373,7 @@ public class ConfigParserService : IConfigParserService
             var rootNode = JsonNode.Parse(text, new JsonNodeOptions { PropertyNameCaseInsensitive = true }, docOptions);
             if (rootNode is JsonObject rootObj)
             {
+                // 1. ConnectionStrings
                 var csKey = rootObj.Select(p => p.Key)
                     .FirstOrDefault(k => k.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase));
 
@@ -236,7 +388,9 @@ public class ConfigParserService : IConfigParserService
                         {
                             FilePath = filePath,
                             FileType = ConfigFileType.AppSettingsJson,
+                            Category = ConfigCategory.ConnectionStrings,
                             KeyName = key,
+                            JsonPath = $"{csKey}:{key}",
                             CurrentValue = val,
                             NewValue = val,
                             IsSelected = true,
@@ -244,6 +398,9 @@ public class ConfigParserService : IConfigParserService
                         });
                     }
                 }
+
+                // 2. Client Endpoints & Service URLs (e.g. SSOLibConfigs, Endpoints, etc.)
+                ExtractEndpointsFromJson(filePath, rootObj, string.Empty, null, list);
             }
         }
         catch (Exception ex)
@@ -252,6 +409,7 @@ public class ConfigParserService : IConfigParserService
             {
                 FilePath = filePath,
                 FileType = ConfigFileType.AppSettingsJson,
+                Category = ConfigCategory.ConnectionStrings,
                 KeyName = "[Parse Error]",
                 CurrentValue = string.Empty,
                 NewValue = string.Empty,
@@ -262,6 +420,110 @@ public class ConfigParserService : IConfigParserService
         }
 
         return list;
+    }
+
+    private void ExtractEndpointsFromJson(
+        string filePath,
+        JsonObject currentObj,
+        string currentPath,
+        string? parentSectionName,
+        List<ConnectionStringEntry> list)
+    {
+        foreach (var kvp in currentObj)
+        {
+            var key = kvp.Key;
+            var valNode = kvp.Value;
+            var childPath = string.IsNullOrEmpty(currentPath) ? key : $"{currentPath}:{key}";
+
+            if (valNode is JsonObject childObj)
+            {
+                // Skip ConnectionStrings since it is handled separately
+                if (key.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                ExtractEndpointsFromJson(filePath, childObj, childPath, key, list);
+            }
+            else if (valNode is JsonValue)
+            {
+                var strVal = valNode.ToString()?.Trim() ?? string.Empty;
+                if (IsCandidateEndpoint(key, parentSectionName, strVal))
+                {
+                    list.Add(new ConnectionStringEntry
+                    {
+                        FilePath = filePath,
+                        FileType = ConfigFileType.AppSettingsJson,
+                        Category = ConfigCategory.ClientEndpoints,
+                        KeyName = key,
+                        ProviderName = parentSectionName ?? "Endpoint",
+                        JsonPath = childPath,
+                        CurrentValue = strVal,
+                        NewValue = strVal,
+                        IsSelected = true,
+                        Status = ConfigEntryStatus.Unchanged
+                    });
+                }
+            }
+        }
+    }
+
+    private static bool IsCandidateEndpoint(string key, string? parentSectionName, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        // Must start with http:// or https:// (URL endpoint format)
+        if (!value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Check if property key indicates an endpoint
+        if (key.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("serviceurl", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("soapurl", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("apiurl", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("wcfurl", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("svcurl", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Check if parent section is a known endpoint/service container
+        if (parentSectionName != null)
+        {
+            if (KnownEndpointSectionKeywords.Contains(parentSectionName))
+                return true;
+
+            if (parentSectionName.Contains("sso", StringComparison.OrdinalIgnoreCase) ||
+                parentSectionName.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
+                parentSectionName.Contains("service", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool UpdateJsonNodeRecursive(JsonObject obj, string targetKey, string newValue)
+    {
+        var existingKey = obj.Select(p => p.Key)
+            .FirstOrDefault(k => k.Equals(targetKey, StringComparison.OrdinalIgnoreCase));
+
+        if (existingKey != null && obj[existingKey] is not JsonObject)
+        {
+            obj[existingKey] = JsonValue.Create(newValue);
+            return true;
+        }
+
+        foreach (var child in obj.Select(p => p.Value).OfType<JsonObject>())
+        {
+            if (UpdateJsonNodeRecursive(child, targetKey, newValue))
+                return true;
+        }
+
+        return false;
     }
 
     private static Encoding DetectEncoding(string filename)

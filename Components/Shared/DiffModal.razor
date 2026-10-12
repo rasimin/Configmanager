@@ -32,7 +32,7 @@
                 <div class="diff-grid">
                     <div class="diff-column">
                         <div class="diff-column-header">
-                            <span class="text-neutral">Original Connection String (On Disk)</span>
+                            <span class="text-neutral">@(Entry.Category == ConfigCategory.ClientEndpoints ? "Original Endpoint Address (On Disk)" : "Original Connection String (On Disk)")</span>
                             <button class="btn-icon-subtle" @onclick="() => CopyToClipboard(Entry.CurrentValue)" title="Copy Original">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -47,7 +47,7 @@
 
                     <div class="diff-column">
                         <div class="diff-column-header">
-                            <span class="text-primary">Preview New Connection String</span>
+                            <span class="text-primary">@(Entry.Category == ConfigCategory.ClientEndpoints ? "Preview New Endpoint Address" : "Preview New Connection String")</span>
                             <button class="btn-icon-subtle" @onclick="() => CopyToClipboard(Entry.NewValue)" title="Copy New">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>

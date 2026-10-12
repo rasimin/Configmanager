@@ -9,6 +9,10 @@
                     @onclick="() => ActiveCategory = ConfigCategory.ConnectionStrings">
                 <span>Connection Strings</span>
             </button>
+            <button class="cat-tab @(ActiveCategory == ConfigCategory.ClientEndpoints ? "active" : "")"
+                    @onclick="() => ActiveCategory = ConfigCategory.ClientEndpoints">
+                <span>Client Endpoints</span>
+            </button>
             <button class="cat-tab @(ActiveCategory == ConfigCategory.AppSettings ? "active" : "")"
                     @onclick="() => ActiveCategory = ConfigCategory.AppSettings">
                 <span>App Settings</span>
@@ -96,6 +100,66 @@
                         </div>
                     </div>
 
+                    <!-- Optional Client Endpoints Update Section -->
+                    <div class="endpoint-optional-box">
+                        <div class="endpoint-toggle-row">
+                            <label class="checkbox-label-compact" title="Check to also update Client / WCF endpoint addresses">
+                                <input type="checkbox" @bind="StructuredArgs.UpdateEndpoints" />
+                                <span class="endpoint-toggle-title">Update Client Endpoints (Optional)</span>
+                            </label>
+                            <span class="endpoint-tag">WCF / SSO</span>
+                        </div>
+
+                        @if (StructuredArgs.UpdateEndpoints)
+                        {
+                            <div class="endpoint-subform">
+                                <div class="param-field">
+                                    <label class="param-label">
+                                        <span class="param-name">Find in Endpoint URL</span>
+                                        <span class="param-alias">Host, IP, or substring to replace</span>
+                                    </label>
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           placeholder="e.g. localhost or 192.168.43.164"
+                                           @bind="StructuredArgs.EndpointFindPattern" />
+                                </div>
+
+                                <div class="param-field">
+                                    <label class="param-label">
+                                        <span class="param-name">Replace with</span>
+                                        <span class="param-alias">New Host, IP, or domain</span>
+                                    </label>
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           placeholder="e.g. 192.168.26.21"
+                                           @bind="StructuredArgs.EndpointReplacePattern" />
+                                </div>
+
+                                <div class="param-field">
+                                    <label class="param-label">
+                                        <span class="param-name">Specific Full URL (Optional)</span>
+                                        <span class="param-alias">Direct override for SSOSoap or target</span>
+                                    </label>
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           placeholder="e.g. http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx"
+                                           @bind="StructuredArgs.EndpointNewAddress" />
+                                </div>
+
+                                <div class="param-field">
+                                    <label class="param-label">
+                                        <span class="param-name">Target Endpoint Name (Optional)</span>
+                                        <span class="param-alias">Leave blank to apply to all endpoints</span>
+                                    </label>
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           placeholder="e.g. SSOSoap (or blank for all)"
+                                           @bind="StructuredArgs.TargetEndpointName" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+
                     <div class="param-actions-row">
                         <button class="btn btn-primary btn-sm flex-1"
                                 @onclick="ApplyStructuredToSelected"
@@ -123,7 +187,7 @@
                         <label class="param-label">Find Text</label>
                         <input type="text"
                                class="form-control form-control-sm"
-                               placeholder="Text to find..."
+                               placeholder="Exact string to find..."
                                @bind="RawFindText" />
                     </div>
 
@@ -131,103 +195,230 @@
                         <label class="param-label">Replace With</label>
                         <input type="text"
                                class="form-control form-control-sm"
-                               placeholder="Replacement text..."
+                               placeholder="Replacement string..."
                                @bind="RawReplaceWith" />
                     </div>
 
-                    <label class="checkbox-label-compact mt-1">
-                        <input type="checkbox" @bind="MatchCase" />
-                        <span>Match case</span>
-                    </label>
+                    <div class="param-field">
+                        <label class="checkbox-label-compact">
+                            <input type="checkbox" @bind="MatchCase" />
+                            <span>Match Case (Exact case-sensitive)</span>
+                        </label>
+                    </div>
 
-                    <div class="param-actions-row mt-2">
+                    <div class="param-actions-row">
                         <button class="btn btn-primary btn-sm flex-1"
                                 @onclick="ApplyRawToSelected"
                                 disabled="@(string.IsNullOrEmpty(RawFindText) || SelectedCount == 0)">
-                            Apply to @SelectedCount Selected
+                            Apply Preview to @SelectedCount Selected
                         </button>
-
-                        @if (ModifiedCount > 0)
-                        {
-                            <button class="btn btn-outline btn-sm" @onclick="OnResetPreview">
-                                Revert
-                            </button>
-                        }
                     </div>
                 </div>
             }
 
-            <!-- Active Selected Entry Live Inspector -->
-            <div class="active-entry-inspector">
-                <div class="inspector-header">
-                    <span>Active Selection Inspector</span>
-                    @if (ActiveEntry != null)
-                    {
-                        <span class="active-badge">@ActiveEntry.KeyName</span>
-                    }
-                </div>
-
-                @if (ActiveEntry != null)
+            <!-- Live Active Entry Inspector -->
+            <div class="inspector-card">
+                <div class="inspector-title">Active Row Inspector</div>
+                @if (ActiveEntry == null)
                 {
-                    var parsed = ConnectionStringHelper.Parse(ActiveEntry.NewValue);
-
-                    <div class="inspector-details">
-                        <div class="inspector-meta-row">
-                            <span class="meta-label">File:</span>
-                            <span class="meta-val" title="@ActiveEntry.FilePath">@ActiveEntry.FileName</span>
-                        </div>
-
-                        <div class="inspector-params-list">
-                            <div class="param-row">
-                                <span class="p-key">Host:</span>
-                                <span class="p-val">@(parsed.Server ?? "(not specified)")</span>
-                            </div>
-                            <div class="param-row">
-                                <span class="p-key">Database:</span>
-                                <span class="p-val">@(parsed.Database ?? "(not specified)")</span>
-                            </div>
-                            <div class="param-row">
-                                <span class="p-key">User:</span>
-                                <span class="p-val">@(parsed.UserId ?? "(not specified)")</span>
-                            </div>
-                            <div class="param-row">
-                                <span class="p-key">Password:</span>
-                                <span class="p-val">@(string.IsNullOrEmpty(parsed.Password) ? "(none)" : "••••••••")</span>
-                            </div>
-                        </div>
-
-                        <div class="inspector-actions">
-                            <button class="btn-xs btn-outline" @onclick="() => OnInspectModal.InvokeAsync(ActiveEntry)">
-                                Compare Full Diff
-                            </button>
-                            @if (ActiveEntry.Status == ConfigEntryStatus.Modified)
-                            {
-                                <button class="btn-xs btn-outline" @onclick="() => ActiveEntry.ResetPreview()">
-                                    Revert Entry
-                                </button>
-                            }
-                        </div>
-                    </div>
+                    <div class="inspector-empty">Click any row in the table to inspect details</div>
                 }
                 else
                 {
-                    <div class="empty-inspector">
-                        Click any row in the table to inspect and edit its parameters here.
+                    <div class="inspector-field">
+                        <span class="insp-label">Category:</span>
+                        <span class="insp-val">@(ActiveEntry.Category == ConfigCategory.ClientEndpoints ? "Client / Service Endpoint" : "Connection String")</span>
+                    </div>
+                    <div class="inspector-field">
+                        <span class="insp-label">File:</span>
+                        <span class="insp-val">@ActiveEntry.FileName</span>
+                    </div>
+                    <div class="inspector-field">
+                        <span class="insp-label">Key:</span>
+                        <span class="insp-val text-primary-high">@ActiveEntry.KeyName</span>
+                    </div>
+                    <div class="inspector-field">
+                        <span class="insp-label">Type:</span>
+                        <span class="insp-val">@(ActiveEntry.FileType == ConfigFileType.WebConfig ? "web.config (XML)" : "appsettings.json")</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(ActiveEntry.ProviderName))
+                    {
+                        <div class="inspector-field">
+                            <span class="insp-label">Provider/Binding:</span>
+                            <span class="insp-val text-mono-xs">@ActiveEntry.ProviderName</span>
+                        </div>
+                    }
+
+                    @if (ActiveEntry.Category == ConfigCategory.ConnectionStrings)
+                    {
+                        var parsed = ConnectionStringHelper.Parse(ActiveEntry.CurrentValue);
+                        <div class="inspector-params-grid">
+                            <div class="insp-param-item">
+                                <span class="insp-p-name">Host / Server:</span>
+                                <span class="insp-p-val">@(parsed.Server ?? "-")</span>
+                            </div>
+                            <div class="insp-param-item">
+                                <span class="insp-p-name">Database:</span>
+                                <span class="insp-p-val">@(parsed.Database ?? "-")</span>
+                            </div>
+                            <div class="insp-param-item">
+                                <span class="insp-p-name">Username:</span>
+                                <span class="insp-p-val">@(parsed.UserId ?? "-")</span>
+                            </div>
+                            <div class="insp-param-item">
+                                <span class="insp-p-name">Password:</span>
+                                <span class="insp-p-val">@(string.IsNullOrEmpty(parsed.Password) ? "-" : "••••••••")</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="inspector-field">
+                            <span class="insp-label">Current Address:</span>
+                            <span class="insp-val text-mono-xs" title="@ActiveEntry.CurrentValue">@ActiveEntry.CurrentValue</span>
+                        </div>
+                    }
+
+                    <div class="inspector-actions">
+                        <button class="btn btn-outline btn-xs flex-1"
+                                @onclick="() => OnInspectModal.InvokeAsync(ActiveEntry)">
+                            Open Full Diff
+                        </button>
                     </div>
                 }
             </div>
         </div>
 
-        <!-- Right Panel Sticky Bottom Action -->
-        <div class="panel-bottom-dock">
-            <div class="dock-summary">
-                <span><strong>@ModifiedCount</strong> modified</span>
-                <span>&bull;</span>
-                <span><strong>@SelectedCount</strong> / @TotalCount selected</span>
+        <!-- Sticky Save Dock -->
+        <div class="save-dock">
+            <div class="save-dock-info">
+                <span>Pending saves:</span>
+                <span class="save-dock-count @(ModifiedCount > 0 ? "text-amber" : "")">@ModifiedCount</span>
+            </div>
+            <button class="btn btn-save btn-sm flex-1"
+                    @onclick="() => OnSaveAllClicked.InvokeAsync()"
+                    disabled="@(ModifiedCount == 0 || IsSaving)">
+                @if (IsSaving)
+                {
+                    <span class="spinner-small"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save All Changes (@ModifiedCount)</span>
+                }
+            </button>
+        </div>
+    }
+    else if (ActiveCategory == ConfigCategory.ClientEndpoints)
+    {
+        <div class="panel-scroll-content">
+            <div class="structured-form-box">
+                <div class="form-section-title">
+                    <span>WCF &amp; Service Endpoints</span>
+                    <span class="field-hint">e.g. SSO.asmx, wsTransaction.asmx</span>
+                </div>
+
+                <div class="param-field">
+                    <label class="param-label">
+                        <span class="param-name">Target / Match in URL</span>
+                        <span class="param-alias">Host, IP, or old server to replace</span>
+                    </label>
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           placeholder="e.g. localhost or 192.168.43.164"
+                           @bind="EndpointOnlyFind" />
+                </div>
+
+                <div class="param-field">
+                    <label class="param-label">
+                        <span class="param-name">Replace with</span>
+                        <span class="param-alias">New Server IP, Host, or Domain</span>
+                    </label>
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           placeholder="e.g. 192.168.26.21"
+                           @bind="EndpointOnlyReplace" />
+                </div>
+
+                <div class="param-field">
+                    <label class="param-label">
+                        <span class="param-name">Specific Full URL (Optional)</span>
+                        <span class="param-alias">Direct override for target endpoint</span>
+                    </label>
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           placeholder="e.g. http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx"
+                           @bind="EndpointOnlyDirectUrl" />
+                </div>
+
+                <div class="param-field">
+                    <label class="param-label">
+                        <span class="param-name">Target Endpoint Name (Optional)</span>
+                        <span class="param-alias">Filter specific endpoint name (e.g. SSOSoap)</span>
+                    </label>
+                    <input type="text"
+                           class="form-control form-control-sm"
+                           placeholder="e.g. SSOSoap (or blank for all)"
+                           @bind="EndpointOnlyTargetName" />
+                </div>
+
+                <div class="param-actions-row">
+                    <button class="btn btn-primary btn-sm flex-1"
+                            @onclick="ApplyEndpointOnly"
+                            disabled="@((string.IsNullOrWhiteSpace(EndpointOnlyFind) && string.IsNullOrWhiteSpace(EndpointOnlyDirectUrl)) || SelectedCount == 0)">
+                        Apply to @SelectedCount Selected
+                    </button>
+                    <button class="btn btn-outline btn-sm"
+                            @onclick="ClearEndpointOnly">
+                        Clear
+                    </button>
+                </div>
             </div>
 
-            <button class="btn btn-save w-full"
-                    @onclick="OnSaveAllClicked"
+            <!-- Active Inspector if selected entry is an endpoint -->
+            @if (ActiveEntry != null)
+            {
+                <div class="inspector-card">
+                    <div class="inspector-title">Selected Item Inspector</div>
+                    <div class="inspector-field">
+                        <span class="insp-label">Category:</span>
+                        <span class="insp-val">@(ActiveEntry.Category == ConfigCategory.ClientEndpoints ? "Client / Service Endpoint" : "Connection String")</span>
+                    </div>
+                    <div class="inspector-field">
+                        <span class="insp-label">Name:</span>
+                        <span class="insp-val">@ActiveEntry.KeyName</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(ActiveEntry.ProviderName))
+                    {
+                        <div class="inspector-field">
+                            <span class="insp-label">Binding/Contract:</span>
+                            <span class="insp-val text-mono-xs">@ActiveEntry.ProviderName</span>
+                        </div>
+                    }
+                    <div class="inspector-field">
+                        <span class="insp-label">Current Address:</span>
+                        <span class="insp-val text-mono-xs" title="@ActiveEntry.CurrentValue">@ActiveEntry.CurrentValue</span>
+                    </div>
+                    @if (ActiveEntry.HasChanges)
+                    {
+                        <div class="inspector-field">
+                            <span class="insp-label">New Preview:</span>
+                            <span class="insp-val text-mono-xs text-amber" title="@ActiveEntry.NewValue">@ActiveEntry.NewValue</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Sticky Save Dock -->
+        <div class="save-dock">
+            <div class="save-dock-info">
+                <span>Pending saves:</span>
+                <span class="save-dock-count @(ModifiedCount > 0 ? "text-amber" : "")">@ModifiedCount</span>
+            </div>
+            <button class="btn btn-save btn-sm flex-1"
+                    @onclick="() => OnSaveAllClicked.InvokeAsync()"
                     disabled="@(ModifiedCount == 0 || IsSaving)">
                 @if (IsSaving)
                 {
@@ -282,11 +473,20 @@
     private string RawReplaceWith { get; set; } = string.Empty;
     private bool MatchCase { get; set; } = false;
 
+    private string EndpointOnlyFind { get; set; } = string.Empty;
+    private string EndpointOnlyReplace { get; set; } = string.Empty;
+    private string EndpointOnlyDirectUrl { get; set; } = string.Empty;
+    private string EndpointOnlyTargetName { get; set; } = string.Empty;
+
     private bool IsStructuredEmpty =>
         string.IsNullOrWhiteSpace(StructuredArgs.Server) &&
         string.IsNullOrWhiteSpace(StructuredArgs.Database) &&
         string.IsNullOrWhiteSpace(StructuredArgs.UserId) &&
-        string.IsNullOrWhiteSpace(StructuredArgs.Password);
+        string.IsNullOrWhiteSpace(StructuredArgs.Password) &&
+        (!StructuredArgs.UpdateEndpoints || (
+            string.IsNullOrWhiteSpace(StructuredArgs.EndpointFindPattern) &&
+            string.IsNullOrWhiteSpace(StructuredArgs.EndpointReplacePattern) &&
+            string.IsNullOrWhiteSpace(StructuredArgs.EndpointNewAddress)));
 
     private async Task ApplyStructuredToSelected()
     {
@@ -303,5 +503,27 @@
     {
         if (string.IsNullOrEmpty(RawFindText)) return;
         await OnApplyRaw.InvokeAsync((RawFindText, RawReplaceWith, MatchCase));
+    }
+
+    private async Task ApplyEndpointOnly()
+    {
+        if (string.IsNullOrWhiteSpace(EndpointOnlyFind) && string.IsNullOrWhiteSpace(EndpointOnlyDirectUrl)) return;
+        var args = new StructuredBulkUpdateArgs
+        {
+            UpdateEndpoints = true,
+            EndpointFindPattern = EndpointOnlyFind,
+            EndpointReplacePattern = EndpointOnlyReplace,
+            EndpointNewAddress = EndpointOnlyDirectUrl,
+            TargetEndpointName = EndpointOnlyTargetName
+        };
+        await OnApplyStructured.InvokeAsync(args);
+    }
+
+    private void ClearEndpointOnly()
+    {
+        EndpointOnlyFind = string.Empty;
+        EndpointOnlyReplace = string.Empty;
+        EndpointOnlyDirectUrl = string.Empty;
+        EndpointOnlyTargetName = string.Empty;
     }
 }

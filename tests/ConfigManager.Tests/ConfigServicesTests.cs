@@ -181,4 +181,212 @@ public class ConfigServicesTests
         Assert.Contains("Password=NewPass456!", updated);       // Changed!
         Assert.Contains("Encrypt=True", updated);               // Preserved!
     }
+
+    [Fact]
+    public void ParseWebConfig_ExtractsClientEndpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ConfigManager_Test_Endpoint_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempWebConfig = Path.Combine(tempDir, "web.config");
+
+        try
+        {
+            var xmlContent = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<configuration>
+  <connectionStrings>
+    <add name=""MyDb"" connectionString=""Server=10.0.0.1;Database=TestDb;"" />
+  </connectionStrings>
+  <system.serviceModel>
+    <client>
+      <endpoint address=""http://localhost/VICTOR/SSO/Service/SSO.asmx"" binding=""basicHttpBinding"" bindingConfiguration=""SSOSoap"" contract=""SSOSvc.SSOSoap"" name=""SSOSoap"" />
+      <endpoint address=""http://192.168.1.10/Services/wsTransaction.asmx"" binding=""basicHttpBinding"" contract=""SIARTransaction.wsTransactionSoap"" name=""wsTransactionSoap"" />
+    </client>
+  </system.serviceModel>
+</configuration>";
+            File.WriteAllText(tempWebConfig, xmlContent);
+
+            var entries = _parserService.ParseFile(tempWebConfig);
+
+            Assert.Equal(3, entries.Count); // 1 conn string + 2 endpoints
+            var conn = entries.FirstOrDefault(e => e.Category == ConfigCategory.ConnectionStrings);
+            Assert.NotNull(conn);
+            Assert.Equal("MyDb", conn.KeyName);
+
+            var ssoEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOSoap" && e.Category == ConfigCategory.ClientEndpoints);
+            Assert.NotNull(ssoEndpoint);
+            Assert.Equal("http://localhost/VICTOR/SSO/Service/SSO.asmx", ssoEndpoint.CurrentValue);
+            Assert.Equal("basicHttpBinding", ssoEndpoint.ProviderName);
+
+            var wsEndpoint = entries.FirstOrDefault(e => e.KeyName == "wsTransactionSoap" && e.Category == ConfigCategory.ClientEndpoints);
+            Assert.NotNull(wsEndpoint);
+            Assert.Equal("http://192.168.1.10/Services/wsTransaction.asmx", wsEndpoint.CurrentValue);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SaveWebConfig_UpdatesBothConnectionStringsAndClientEndpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ConfigManager_Test_Save_EP_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempWebConfig = Path.Combine(tempDir, "web.config");
+
+        try
+        {
+            var xmlContent = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<configuration>
+  <!-- Main Database Connection -->
+  <connectionStrings>
+    <add name=""MyDb"" connectionString=""Server=10.0.0.1;Database=TestDb;"" providerName=""System.Data.SqlClient"" />
+  </connectionStrings>
+  <!-- Client Endpoints -->
+  <system.serviceModel>
+    <client>
+      <endpoint address=""http://localhost/VICTOR/SSO/Service/SSO.asmx"" binding=""basicHttpBinding"" contract=""SSOSvc.SSOSoap"" name=""SSOSoap"" />
+    </client>
+  </system.serviceModel>
+</configuration>";
+            File.WriteAllText(tempWebConfig, xmlContent);
+
+            var entries = _parserService.ParseFile(tempWebConfig);
+            var connEntry = entries.First(e => e.Category == ConfigCategory.ConnectionStrings);
+            connEntry.ApplyPreview("Server=192.168.26.21;Database=TestDb_New;");
+
+            var epEntry = entries.First(e => e.Category == ConfigCategory.ClientEndpoints);
+            epEntry.ApplyPreview("http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx");
+
+            _parserService.SaveWebConfig(tempWebConfig, new[] { connEntry, epEntry });
+
+            var updatedXml = File.ReadAllText(tempWebConfig);
+            Assert.Contains("Server=192.168.26.21;Database=TestDb_New;", updatedXml);
+            Assert.Contains("http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx", updatedXml);
+            Assert.Contains("<!-- Main Database Connection -->", updatedXml); // Comment preserved!
+            Assert.Contains("<!-- Client Endpoints -->", updatedXml);            // Comment preserved!
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseAppSettingsJson_ExtractsSSOLibEndpointsAndConnectionStrings()
+    {
+        var sampleJsonPath = Path.Combine(Directory.GetCurrentDirectory(), "sample", "angenttree", "appsettings.json");
+        if (!File.Exists(sampleJsonPath))
+        {
+            // Fallback to relative test directory
+            var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (currentDir != null)
+            {
+                var candidate = Path.Combine(currentDir.FullName, "sample", "angenttree", "appsettings.json");
+                if (File.Exists(candidate))
+                {
+                    sampleJsonPath = candidate;
+                    break;
+                }
+                currentDir = currentDir.Parent;
+            }
+        }
+
+        Assert.True(File.Exists(sampleJsonPath), $"Sample file not found: {sampleJsonPath}");
+
+        var entries = _parserService.ParseFile(sampleJsonPath);
+
+        // 1 Connection String: DefaultConnection
+        var conn = entries.FirstOrDefault(e => e.Category == ConfigCategory.ConnectionStrings);
+        Assert.NotNull(conn);
+        Assert.Equal("DefaultConnection", conn.KeyName);
+
+        // 2 Client Endpoints: SSOLib_SvcEndPoint & SSOLib_ApiEndPoint
+        var svcEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOLib_SvcEndPoint" && e.Category == ConfigCategory.ClientEndpoints);
+        Assert.NotNull(svcEndpoint);
+        Assert.Equal("http://192.168.69.26/DEV_SSO/Service/SSO.asmx", svcEndpoint.CurrentValue);
+        Assert.Equal("SSOLibConfigs", svcEndpoint.ProviderName);
+
+        var apiEndpoint = entries.FirstOrDefault(e => e.KeyName == "SSOLib_ApiEndPoint" && e.Category == ConfigCategory.ClientEndpoints);
+        Assert.NotNull(apiEndpoint);
+        Assert.Equal("http://192.168.69.26/DEV_SSO/api/v1.svc", apiEndpoint.CurrentValue);
+        Assert.Equal("SSOLibConfigs", apiEndpoint.ProviderName);
+    }
+
+    [Fact]
+    public void SaveAppSettings_UpdatesBothConnectionStringsAndJsonEndpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ConfigManager_Test_Save_JsonEP_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempJsonPath = Path.Combine(tempDir, "appsettings.json");
+
+        try
+        {
+            var jsonContent = @"{
+  ""ConnectionStrings"": {
+    ""DefaultConnection"": ""Server=OLD_SRV;Database=MyDb;""
+  },
+  ""SSOLibConfigs"": {
+    ""SSOLib_SvcEndPoint"": ""http://192.168.69.26/DEV_SSO/Service/SSO.asmx"",
+    ""SSOLib_ApiEndPoint"": ""http://192.168.69.26/DEV_SSO/api/v1.svc"",
+    ""SSOLib_LSDExpireTimeInSeconds"": 90
+  }
+}";
+            File.WriteAllText(tempJsonPath, jsonContent);
+
+            var entries = _parserService.ParseFile(tempJsonPath);
+            Assert.Equal(3, entries.Count); // 1 connection string + 2 endpoints
+
+            var connEntry = entries.First(e => e.Category == ConfigCategory.ConnectionStrings);
+            connEntry.ApplyPreview("Server=192.168.26.21;Database=MyDb_New;");
+
+            var svcEntry = entries.First(e => e.KeyName == "SSOLib_SvcEndPoint");
+            svcEntry.ApplyPreview("http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx");
+
+            var apiEntry = entries.First(e => e.KeyName == "SSOLib_ApiEndPoint");
+            apiEntry.ApplyPreview("http://192.168.26.21/VICTOR/SSO/api/v1.svc");
+
+            _parserService.SaveAppSettings(tempJsonPath, new[] { connEntry, svcEntry, apiEntry });
+
+            var updatedJson = File.ReadAllText(tempJsonPath);
+            Assert.Contains("Server=192.168.26.21;Database=MyDb_New;", updatedJson);
+            Assert.Contains("http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx", updatedJson);
+            Assert.Contains("http://192.168.26.21/VICTOR/SSO/api/v1.svc", updatedJson);
+            Assert.Contains("90", updatedJson); // Non-endpoint integer property preserved!
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateComponents_HandlesEntityClientConnectionStringCorrectly()
+    {
+        var originalEf = @"metadata=res://*/Model.SSOModel.csdl|res://*/Model.SSOModel.ssdl|res://*/Model.SSOModel.msl;provider=System.Data.SqlClient;provider connection string=""data source=(local)\sql2019;initial catalog=VICTOR_SSO;Persist Security Info=True;User ID=appims;Password=P4ssw0rd;multipleactiveresultsets=True;App=EntityFramework""";
+
+        // 1. Verify Parse
+        var parsed = ConnectionStringHelper.Parse(originalEf);
+        Assert.Equal(@"(local)\sql2019", parsed.Server);
+        Assert.Equal("VICTOR_SSO", parsed.Database);
+        Assert.Equal("appims", parsed.UserId);
+        Assert.Equal("P4ssw0rd", parsed.Password);
+
+        // 2. Verify UpdateComponents with new host and password
+        var args = new StructuredBulkUpdateArgs
+        {
+            Server = @"192.168.26.21\sql2019",
+            Password = "P4ssw0rd2020#"
+        };
+
+        var updatedEf = ConnectionStringHelper.UpdateComponents(originalEf, args);
+
+        Assert.Contains(@"data source=192.168.26.21\sql2019;", updatedEf);
+        Assert.Contains("Password=P4ssw0rd2020#;", updatedEf);
+        Assert.Contains("initial catalog=VICTOR_SSO;", updatedEf);
+        Assert.Contains("User ID=appims;", updatedEf);
+        Assert.StartsWith("metadata=", updatedEf);
+        Assert.Contains(@"provider connection string=""data source=192.168.26.21\sql2019;", updatedEf);
+        Assert.EndsWith(@"""", updatedEf);
+    }
 }

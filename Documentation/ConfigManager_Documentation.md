@@ -84,39 +84,59 @@ D:\Rasimin\Learn\SetConfigNetCore\
    - Saat proses simpan, atribut `connectionString` diperbarui, sementara seluruh formatting XML, spasi, indentasi, atribut lain (`providerName`), deklarasi XML, dan komentar (`<!-- ... -->`) tetap utuh tanpa rusak.
 2. **JSON (`appsettings.json`):**
    - Menggunakan `System.Text.Json.Nodes` (`JsonNode` dan `JsonObject`).
-   - Membaca properti `"ConnectionStrings"` secara case-insensitive.
+   - **Database Connection Strings:** Membaca dan mengupdate properti `"ConnectionStrings"` secara case-insensitive.
+   - **Service & Client Endpoints:** Otomatis mendeteksi endpoint layanan/API pada bagian `"SSOLibConfigs"` (seperti `SSOLib_SvcEndPoint`, `SSOLib_ApiEndPoint`), `"Endpoints"`, `"ClientEndpoints"`, `"ServiceEndpoints"`, atau properti URL endpoint lainnya yang mengarah ke layanan SSO/WCF/REST.
+   - Menggunakan penanda rute internal `JsonPath` (misal `SSOLibConfigs:SSOLib_SvcEndPoint`) untuk navigasi dan penulisan balik yang presisi.
    - Saat proses tulis balik, struktur diatur menggunakan `JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }` agar struktur JSON tetap rapi dan tidak merusak hierarki JSON lain (seperti `Logging`, `AllowedHosts`, dsb).
 3. **Mekanisme Auto Backup:**
    - Sebelum file asli di-overwrite, engine secara otomatis membuat salinan cadangan di direktori yang sama dengan format:
      `[NamaFileAsli].bak_yyyyMMddHHmmss`
-     *(Contoh: `web.config.bak_20261012101500`)*.
+     *(Contoh: `web.config.bak_20261012101500` atau `appsettings.json.bak_20261012101500`)*.
    - Pengguna dapat memverifikasi atau merestore file cadangan kapan saja jika diperlukan.
 
 ### C. 2-Panel Workspace & Right Settings Panel (Categorized)
 1. **Layout 2-Panel:**
-   - **Panel Kiri (Main Workspace):** Command bar scanner, list antrian target, dan tampilan data konfigurasi dengan sistem **Stacked Diff Card View** (default) serta opsi beralih ke **Compact Table View**.
+   - **Panel Kiri (Main Workspace):** Command bar scanner, list antrian target, dan tampilan data konfigurasi dengan sistem **Pengelompokan Per File (File Grouping)** pada **Stacked Diff Card View** (default) serta opsi beralih ke **Compact Table View**.
    - **Panel Kanan (Settings & Inspector):** Panel pengaturan modular berbasis kategori.
-2. **Stacked Diff Card View (Tampilan Awal / Default):**
-   - **Full Application Path:** Menampilkan path direktori lengkap file konfigurasi secara utuh dan jelas (tanpa terpotong elipsis), sehingga pengguna dapat langsung mengetahui aplikasi dan subfolder yang sedang dimodifikasi (`web.config` / `appsettings.json`), dilengkapi tombol copy path instan dan tombol buka di Windows Explorer.
+2. **Pengelompokan Entri Per File (File Grouping View - Mengatasi Duplikasi Path):**
+   - **Satu Kontainer File Terpadu:** Setting yang berada di dalam file fisik yang sama (misal satu `Web.config` yang memiliki Connection String dan WCF Endpoint, atau satu `appsettings.json` yang memiliki `DefaultConnection` dan `SSOLib_SvcEndPoint`/`SSOLib_ApiEndPoint`) kini secara otomatis dikelompokkan dalam satu kartu file (`.file-group-card`), bukan lagi terpisah menjadi kartu ganda yang membingungkan.
+   - **Path Lengkap Ditampilkan 1 Kali:** Header kartu file menampilkan nama file (`Web.config` / `appsettings.json`), tipe format, counter jumlah setting (misal `3 settings`), shortcut Windows Explorer, dan banner path lengkap aplikasi (`D:\...\appsettings.json`) tepat 1 kali di bagian atas.
+   - **Master Checkbox File:** Memungkinkan memilih atau membatalkan pilihan seluruh setting di dalam file tersebut hanya dengan satu klik pada header file.
+   - **Sub-Item Setting Bertingkat (Nested Items):** Masing-masing setting di dalam file tersebut (Connection String maupun Client/Service Endpoint) ditampilkan secara elegan di bawahnya dengan:
+     - Checkbox mandiri per setting.
+     - Pill kategori penanda jelas: `DB Connection` (biru cyan) atau `Service Endpoint` / `WCF Endpoint` (ungu).
+     - Pill nama key/endpoint dan provider/binding/section.
+     - Status per entri (Modified, Unchanged, Saved, Error).
+     - Tombol inspeksi modal (`🔍`) dan tombol revert mandiri (`↺`).
    - **Perbandingan Before & After Bertumpuk (Atas-Bawah):**
-     - **Baris Atas (`BEFORE`):** Menampilkan connection string original/aktif saat ini dengan badge abu-abu dan tombol copy.
-     - **Baris Bawah (`AFTER` / `PREVIEW`):** Menampilkan connection string hasil perubahan dengan badge highlight amber/emas, penyorotan teks, dan tombol inline edit langsung.
-   - **Horizontal Scrollable Code:** Masing-masing baris kode Before dan After dapat di-scroll ke kanan secara independen untuk melihat string koneksi yang sangat panjang tanpa harus membuka modal dialog.
-   - **Detail Modal Diff:** Tombol kaca pembesar tetap tersedia untuk analisis breakdown parameter (Server, Database, User ID, Password).
-3. **Sistem Kategori Modular:**
-   - Tab **"Connection Strings"** (Kategori aktif saat ini).
-   - Tab **"App Settings"** & **"Env Vars"** (Disiapkan untuk ekspansi modular berikutnya).
-4. **Override Parameter Terstruktur (Structured Parameters):**
-   - Mengubah parameter spesifik tanpa merusak parameter lain:
+     - **Baris Atas (`BEFORE`):** Menampilkan nilai original dengan tombol copy.
+     - **Baris Bawah (`AFTER` / `PREVIEW`):** Menampilkan nilai baru dengan badge highlight amber dan tombol inline edit langsung.
+     - **Horizontal Scrollable Code:** Masing-masing baris kode Before dan After dapat di-scroll ke kanan secara independen untuk melihat string koneksi/URL panjang.
+   - **Pengelompokan Pada Compact Table View:** Pada mode Compact Table, baris-baris setting juga dikelompokkan dengan subheader baris file (`.table-group-header-row`) yang memuat nama file, counter, dan path direktori.
+3. **Sistem Kategori Modular & Dukungan Client Endpoints (WCF & JSON Service Endpoints):**
+   - Tab **"Connection Strings"**: Mengelola dan mengubah connection string database.
+   - Tab **"Client Endpoints"**: Mendeteksi dan mengelola tag WCF `<system.serviceModel><client><endpoint address="..." />` pada `web.config` **DAN** endpoint layanan JSON pada `appsettings.json` (seperti `SSOLib_SvcEndPoint`, `SSOLib_ApiEndPoint` pada `SSOLibConfigs`).
+   - Tab **"App Settings"** & **"Env Vars"**: Disiapkan untuk ekspansi modular berikutnya.
+4. **Override Sekaligus (Simultaneous Replacement - Opsional):**
+   - Saat mengubah Connection Strings di panel kanan, tersedia opsi **"Update Client Endpoints (Optional)"**:
+     - Pengguna dapat mengisi parameter database (Host, Database, User, Password) **DAN** sekaligus mengisi parameter endpoint (Target Match in URL, Replace With, atau Specific Full URL untuk endpoint SSO/service).
+     - Sekali klik **"Apply to Selected"**, perubahan connection string dan perubahan endpoint langsung diaplikasikan dan di-preview bersamaan.
+     - Sifatnya **100% opsional**: jika opsi endpoint tidak dicentang / dikosongkan, seluruh endpoint tetap aman dan tidak akan disentuh.
+     - Saat **"Save All Changes"** dijalankan, kedua perubahan dituliskan ke file (`web.config` maupun `appsettings.json`) dalam satu pass penulisan atomik tanpa merusak formatting atau komentar.
+5. **Override Parameter Terstruktur (Structured Parameters) & EntityClient / EF Support:**
+   - Mengubah parameter spesifik database tanpa merusak parameter lain:
      - **Host / Server:** Mengupdate `Data Source`, `Server`, `Host`, atau `Addr`.
      - **Database:** Mengupdate `Initial Catalog` atau `Database`.
      - **Username:** Mengupdate `User ID`, `User Id`, `Username`, atau `Uid`.
      - **Password:** Mengupdate `Password` atau `Pwd` (dilengkapi toggle show/hide).
+   - **Dukungan Penuh Entity Framework / EntityClient:**
+     - Connection string bertipe EF (`metadata=...;provider=System.Data.SqlClient;provider connection string="data source=...;initial catalog=...;"`) otomatis diidentifikasi.
+     - Engine mengekstrak inner ADO.NET connection string di dalam `provider connection string="..."` sehingga parameter `data source`, `initial catalog`, `user id`, dan `password` dapat dibaca dan diupdate dengan presisi tanpa merusak metadata maupun formatting EF.
    - Nilai parameter yang dibiarkan kosong tidak akan diubah pada connection string target.
    - Tersedia sub-mode **"Raw Find & Replace"** untuk penyesuaian string global atau format khusus (Redis, MongoDB).
-5. **Live Active Entry Inspector:**
-   - Mengklik item mana saja pada panel kiri akan memuat rincian parameter string koneksi tersebut secara instan di panel kanan.
-6. **Konfirmasi Simpan Aman:**
+6. **Live Active Entry Inspector:**
+   - Mengklik item mana saja pada panel kiri akan memuat rincian parameter (Connection String maupun Client Endpoint) secara instan di panel kanan.
+7. **Konfirmasi Simpan Aman:**
    - Tombol **Save All Changes** di bagian bawah panel kanan menampilkan modal konfirmasi yang merinci total file yang terpengaruh, daftar path lengkap, dan konfirmasi pembuatan backup otomatis sebelum penulisan ke disk dilakukan.
 
 ---

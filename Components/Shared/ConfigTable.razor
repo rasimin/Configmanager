@@ -23,26 +23,40 @@
             </div>
 
             <div class="filter-pills">
-                <button class="pill-btn @(StatusFilter == null ? "active" : "")"
-                        @onclick="() => StatusFilter = null">
+                <button class="pill-btn @(StatusFilter == null && CategoryFilter == null ? "active" : "")"
+                        @onclick="() => { StatusFilter = null; CategoryFilter = null; }">
                     All (@Entries.Count)
                 </button>
+                @if (Entries.Any(e => e.Category == ConfigCategory.ConnectionStrings))
+                {
+                    <button class="pill-btn @(CategoryFilter == ConfigCategory.ConnectionStrings ? "active" : "")"
+                            @onclick="() => { CategoryFilter = ConfigCategory.ConnectionStrings; StatusFilter = null; }">
+                        DB Strings (@Entries.Count(e => e.Category == ConfigCategory.ConnectionStrings))
+                    </button>
+                }
+                @if (Entries.Any(e => e.Category == ConfigCategory.ClientEndpoints))
+                {
+                    <button class="pill-btn pill-endpoint @(CategoryFilter == ConfigCategory.ClientEndpoints ? "active" : "")"
+                            @onclick="() => { CategoryFilter = ConfigCategory.ClientEndpoints; StatusFilter = null; }">
+                        Endpoints (@Entries.Count(e => e.Category == ConfigCategory.ClientEndpoints))
+                    </button>
+                }
                 <button class="pill-btn pill-warning @(StatusFilter == ConfigEntryStatus.Modified ? "active" : "")"
-                        @onclick="() => StatusFilter = ConfigEntryStatus.Modified">
+                        @onclick="() => { StatusFilter = ConfigEntryStatus.Modified; CategoryFilter = null; }">
                     Modified (@Entries.Count(e => e.Status == ConfigEntryStatus.Modified))
                 </button>
                 <button class="pill-btn @(StatusFilter == ConfigEntryStatus.Unchanged ? "active" : "")"
-                        @onclick="() => StatusFilter = ConfigEntryStatus.Unchanged">
+                        @onclick="() => { StatusFilter = ConfigEntryStatus.Unchanged; CategoryFilter = null; }">
                     Unchanged (@Entries.Count(e => e.Status == ConfigEntryStatus.Unchanged))
                 </button>
                 <button class="pill-btn pill-success @(StatusFilter == ConfigEntryStatus.Saved ? "active" : "")"
-                        @onclick="() => StatusFilter = ConfigEntryStatus.Saved">
+                        @onclick="() => { StatusFilter = ConfigEntryStatus.Saved; CategoryFilter = null; }">
                     Saved (@Entries.Count(e => e.Status == ConfigEntryStatus.Saved))
                 </button>
                 @if (Entries.Any(e => e.Status == ConfigEntryStatus.Error))
                 {
                     <button class="pill-btn pill-danger @(StatusFilter == ConfigEntryStatus.Error ? "active" : "")"
-                            @onclick="() => StatusFilter = ConfigEntryStatus.Error">
+                            @onclick="() => { StatusFilter = ConfigEntryStatus.Error; CategoryFilter = null; }">
                         Errors (@Entries.Count(e => e.Status == ConfigEntryStatus.Error))
                     </button>
                 }
@@ -91,11 +105,11 @@
                 <input type="checkbox"
                        checked="@IsAllFilteredSelected"
                        @onchange="ToggleSelectAllFiltered" />
-                <span>Select All Visible (@FilteredEntries.Count items)</span>
+                <span>Select All Visible (@FilteredEntries.Count @(FilteredEntries.Count == 1 ? "setting" : "settings") across @DistinctFilesCount @(DistinctFilesCount == 1 ? "file" : "files"))</span>
             </label>
 
             <div class="selection-counts">
-                <span><strong>@Entries.Count(e => e.IsSelected)</strong> of <strong>@Entries.Count</strong> selected</span>
+                <span><strong>@Entries.Count(e => e.IsSelected)</strong> of <strong>@Entries.Count</strong> selected (@DistinctSelectedFilesCount of @DistinctTotalFilesCount files)</span>
                 @if (Entries.Any(e => e.Status == ConfigEntryStatus.Modified))
                 {
                     <span class="modified-count-pill">• @Entries.Count(e => e.Status == ConfigEntryStatus.Modified) pending save</span>
@@ -136,52 +150,54 @@
         else if (IsDetailedView)
         {
             <!-- ==============================================================
-                 STACKED DIFF CARD VIEW (DEFAULT):
-                 - Full Application Path clearly visible without truncation
-                 - Stacked Before & After rows with individual horizontal scroll
+                 GROUPED STACKED DIFF CARD VIEW (DEFAULT):
+                 - Grouped by File: 1 Card per file, no duplicate headers/paths
+                 - Full Application Path clearly visible once at the file top
+                 - Nested setting items with Before & After horizontal scroll
                  ============================================================== -->
-            <div class="entry-card-list">
-                @foreach (var entry in FilteredEntries)
+            <div class="file-group-list">
+                @foreach (var fileGroup in GroupedEntries)
                 {
-                    var isXml = entry.FileType == ConfigFileType.WebConfig;
-                    var isModified = entry.Status == ConfigEntryStatus.Modified;
-                    var isSaved = entry.Status == ConfigEntryStatus.Saved;
+                    var firstEntry = fileGroup.First();
+                    var isXml = firstEntry.FileType == ConfigFileType.WebConfig;
+                    var groupStatus = GetGroupStatus(fileGroup);
+                    var isGroupModified = groupStatus == ConfigEntryStatus.Modified;
+                    var isGroupSaved = groupStatus == ConfigEntryStatus.Saved;
+                    var isAllSelected = fileGroup.All(e => e.IsSelected);
+                    var isGroupActive = fileGroup.Any(e => ActiveEntry?.Id == e.Id);
 
-                    <div class="entry-card @(entry.IsSelected ? "card-selected" : "") @(isModified ? "card-modified" : "") @(isSaved ? "card-saved" : "") @(ActiveEntry?.Id == entry.Id ? "card-active" : "")"
-                         @onclick="() => OnRowSelected.InvokeAsync(entry)">
-                        
-                        <!-- Header Row: Checkbox, File Name, Badges, Status & Actions -->
-                        <div class="entry-card-header">
-                            <div class="header-left">
-                                <label class="card-checkbox-label" @onclick:stopPropagation="true">
+                    <div class="file-group-card @(isGroupActive ? "group-active" : "") @(isGroupModified ? "group-modified" : "") @(isGroupSaved ? "group-saved" : "")">
+                        <!-- Group Header: Master File Checkbox, File Name, Badges, Explorer & Revert -->
+                        <div class="file-group-header">
+                            <div class="file-header-left">
+                                <label class="card-checkbox-label" title="Select/Deselect all settings in this file" @onclick:stopPropagation="true">
                                     <input type="checkbox"
-                                           @bind="entry.IsSelected"
-                                           @bind:after="NotifySelectionChange" />
+                                           checked="@isAllSelected"
+                                           @onchange="(e) => ToggleFileSelection(fileGroup.Key, (bool?)e.Value ?? false)" />
                                 </label>
 
-                                <div class="entry-title-group">
-                                    <span class="entry-file-name">@entry.FileName</span>
+                                <div class="file-title-block">
+                                    <span class="file-icon-wrap">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                        </svg>
+                                    </span>
+                                    <span class="file-name-text">@firstEntry.FileName</span>
 
                                     <span class="type-pill @(isXml ? "type-xml" : "type-json")">
                                         @(isXml ? "XML web.config" : "JSON appsettings")
                                     </span>
 
-                                    <span class="key-pill" title="Connection String Key Name">
-                                        <span class="key-label">Key:</span> @entry.KeyName
+                                    <span class="item-count-badge" title="@fileGroup.Count() configurable setting(s) in this file">
+                                        @fileGroup.Count() @(fileGroup.Count() == 1 ? "setting" : "settings")
                                     </span>
-
-                                    @if (!string.IsNullOrEmpty(entry.ProviderName))
-                                    {
-                                        <span class="provider-pill" title="Provider: @entry.ProviderName">
-                                            @entry.ProviderName
-                                        </span>
-                                    }
                                 </div>
                             </div>
 
-                            <div class="header-right" @onclick:stopPropagation="true">
+                            <div class="file-header-right" @onclick:stopPropagation="true">
                                 <button class="btn-subtle-action"
-                                        @onclick="() => OnOpenFolder.InvokeAsync(entry.FilePath)"
+                                        @onclick="() => OnOpenFolder.InvokeAsync(firstEntry.FilePath)"
                                         title="Open containing folder in Windows Explorer">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -191,123 +207,191 @@
                                     <span>Explorer</span>
                                 </button>
 
-                                <StatusBadge Status="@entry.Status" ErrorMessage="@entry.ErrorMessage" />
+                                <StatusBadge Status="@groupStatus" />
 
-                                @if (!string.IsNullOrEmpty(entry.BackupPath))
+                                @if (fileGroup.Any(e => !string.IsNullOrEmpty(e.BackupPath)))
                                 {
-                                    <span class="backup-pill" title="Backup created: @entry.BackupPath">
-                                        Bak: @System.IO.Path.GetFileName(entry.BackupPath)
+                                    var bak = fileGroup.FirstOrDefault(e => !string.IsNullOrEmpty(e.BackupPath))?.BackupPath;
+                                    <span class="backup-pill" title="Backup created: @bak">
+                                        Bak: @System.IO.Path.GetFileName(bak)
                                     </span>
                                 }
 
-                                <div class="card-action-btns">
-                                    <button class="btn-action-icon"
-                                            @onclick="() => OnInspectEntry.InvokeAsync(entry)"
-                                            title="Inspect &amp; Compare Diff Details">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <circle cx="11" cy="11" r="8"></circle>
-                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                @if (isGroupModified)
+                                {
+                                    <button class="btn-action-icon btn-revert"
+                                            @onclick="() => RevertAllInFile(fileGroup)"
+                                            title="Revert all modified settings in this file">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="1 4 1 10 7 10"></polyline>
+                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
                                         </svg>
                                     </button>
-
-                                    @if (entry.Status == ConfigEntryStatus.Modified)
-                                    {
-                                        <button class="btn-action-icon btn-revert"
-                                                @onclick="() => OnRevertEntry.InvokeAsync(entry)"
-                                                title="Revert this entry to original">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <polyline points="1 4 1 10 7 10"></polyline>
-                                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                                            </svg>
-                                        </button>
-                                    }
-                                </div>
+                                }
                             </div>
                         </div>
 
-                        <!-- Full Application File Path Row (LENGKAP & TERBACA) -->
-                        <div class="entry-card-path">
+                        <!-- Single Full Application File Path Row -->
+                        <div class="file-path-bar">
                             <svg class="path-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                             </svg>
-                            <span class="path-text" title="@entry.FilePath">@entry.FilePath</span>
+                            <span class="path-text" title="@firstEntry.FilePath">@firstEntry.FilePath</span>
                             <button class="btn-copy-inline"
-                                    @onclick="() => CopyText(entry.FilePath)"
+                                    @onclick="() => CopyText(firstEntry.FilePath)"
                                     @onclick:stopPropagation="true"
                                     title="Copy full file path">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                                 </svg>
+                                <span>Copy Path</span>
                             </button>
                         </div>
 
-                        <!-- Stacked Before & After Diff Box (Bisa Scroll ke Kanan) -->
-                        <div class="entry-diff-box">
-                            <!-- BEFORE / CURRENT -->
-                            <div class="diff-row diff-before-row">
-                                <span class="diff-badge badge-before">BEFORE</span>
-                                <div class="diff-scroll-code">
-                                    <code class="mono-code">@entry.CurrentValue</code>
-                                </div>
-                                <button class="btn-diff-copy"
-                                        @onclick="() => CopyText(entry.CurrentValue)"
-                                        @onclick:stopPropagation="true"
-                                        title="Copy original connection string">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                    <span>Copy</span>
-                                </button>
-                            </div>
+                        <!-- Nested Entries for this File -->
+                        <div class="file-group-items">
+                            @foreach (var entry in fileGroup)
+                            {
+                                var isEntryModified = entry.Status == ConfigEntryStatus.Modified;
+                                var isItemActive = ActiveEntry?.Id == entry.Id;
 
-                            <!-- AFTER / PREVIEW -->
-                            <div class="diff-row diff-after-row @(isModified ? "modified-highlight" : "")">
-                                <span class="diff-badge badge-after @(isModified ? "badge-amber" : "")">
-                                    @(isModified ? "AFTER" : "PREVIEW")
-                                </span>
+                                <div class="file-entry-item @(entry.IsSelected ? "item-selected" : "") @(isEntryModified ? "item-modified" : "") @(isItemActive ? "item-active" : "")"
+                                     @onclick="() => OnRowSelected.InvokeAsync(entry)">
+                                    
+                                    <!-- Item Header: Individual Checkbox, Key / Endpoint info, Provider & Actions -->
+                                    <div class="item-header">
+                                        <div class="item-header-left">
+                                            <label class="card-checkbox-label" @onclick:stopPropagation="true">
+                                                <input type="checkbox"
+                                                       @bind="entry.IsSelected"
+                                                       @bind:after="NotifySelectionChange" />
+                                            </label>
 
-                                @if (entry.IsInlineEditing)
-                                {
-                                    <div class="diff-inline-edit" @onclick:stopPropagation="true">
-                                        <input type="text"
-                                               class="form-control form-control-sm"
-                                               @bind="entry.NewValue" />
-                                        <div class="inline-edit-actions">
-                                            <button class="btn-xs btn-primary" @onclick="() => SaveInlineEdit(entry)">Done</button>
-                                            <button class="btn-xs btn-secondary" @onclick="() => CancelInlineEdit(entry)">Cancel</button>
+                                            @if (entry.Category == ConfigCategory.ClientEndpoints)
+                                            {
+                                                <span class="type-pill type-endpoint" title="@(entry.FileType == ConfigFileType.AppSettingsJson ? "JSON Service Endpoint" : "WCF Client Endpoint")">
+                                                    @(entry.FileType == ConfigFileType.AppSettingsJson ? "Service Endpoint" : "WCF Endpoint")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="type-pill type-db" title="Database Connection String">
+                                                    DB Connection
+                                                </span>
+                                            }
+
+                                            <span class="key-pill" title="@(entry.Category == ConfigCategory.ClientEndpoints ? "Endpoint Name / Contract" : "Connection String Key Name")">
+                                                <span class="key-label">@(entry.Category == ConfigCategory.ClientEndpoints ? "Endpoint:" : "Key:")</span> @entry.KeyName
+                                            </span>
+
+                                            @if (!string.IsNullOrEmpty(entry.ProviderName))
+                                            {
+                                                <span class="provider-pill" title="Binding/Provider: @entry.ProviderName">
+                                                    @entry.ProviderName
+                                                </span>
+                                            }
+                                        </div>
+
+                                        <div class="item-header-right" @onclick:stopPropagation="true">
+                                            <StatusBadge Status="@entry.Status" ErrorMessage="@entry.ErrorMessage" />
+
+                                            <div class="card-action-btns">
+                                                <button class="btn-action-icon"
+                                                        @onclick="() => OnInspectEntry.InvokeAsync(entry)"
+                                                        title="Inspect &amp; Compare Diff Details">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <circle cx="11" cy="11" r="8"></circle>
+                                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                                    </svg>
+                                                </button>
+
+                                                @if (entry.Status == ConfigEntryStatus.Modified)
+                                                {
+                                                    <button class="btn-action-icon btn-revert"
+                                                            @onclick="() => OnRevertEntry.InvokeAsync(entry)"
+                                                            title="Revert this setting to original">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <polyline points="1 4 1 10 7 10"></polyline>
+                                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                                                        </svg>
+                                                    </button>
+                                                }
+                                            </div>
                                         </div>
                                     </div>
-                                }
-                                else
-                                {
-                                    <div class="diff-scroll-code @(isModified ? "code-modified" : "")">
-                                        <code class="mono-code">@entry.NewValue</code>
+
+                                    <!-- Stacked Before & After Diff Box for this setting -->
+                                    <div class="entry-diff-box">
+                                        <!-- BEFORE / CURRENT -->
+                                        <div class="diff-row diff-before-row">
+                                            <span class="diff-badge badge-before">BEFORE</span>
+                                            <div class="diff-scroll-code">
+                                                <code class="mono-code">@entry.CurrentValue</code>
+                                            </div>
+                                            <button class="btn-diff-copy"
+                                                    @onclick="() => CopyText(entry.CurrentValue)"
+                                                    @onclick:stopPropagation="true"
+                                                    title="Copy original value">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                </svg>
+                                                <span>Copy</span>
+                                            </button>
+                                        </div>
+
+                                        <!-- AFTER / PREVIEW -->
+                                        <div class="diff-row diff-after-row @(isEntryModified ? "modified-highlight" : "")">
+                                            <span class="diff-badge badge-after @(isEntryModified ? "badge-amber" : "")">
+                                                @(isEntryModified ? "AFTER" : "PREVIEW")
+                                            </span>
+
+                                            @if (entry.IsInlineEditing)
+                                            {
+                                                <div class="diff-inline-edit" @onclick:stopPropagation="true">
+                                                    <input type="text"
+                                                           class="form-control form-control-sm"
+                                                           @bind="entry.NewValue" />
+                                                    <div class="inline-edit-actions">
+                                                        <button class="btn-xs btn-primary" @onclick="() => SaveInlineEdit(entry)">Done</button>
+                                                        <button class="btn-xs btn-secondary" @onclick="() => CancelInlineEdit(entry)">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="diff-scroll-code @(isEntryModified ? "code-modified" : "")">
+                                                    <code class="mono-code">@entry.NewValue</code>
+                                                </div>
+                                                <div class="diff-after-actions" @onclick:stopPropagation="true">
+                                                    <button class="btn-diff-copy"
+                                                            @onclick="() => CopyText(entry.NewValue)"
+                                                            title="Copy preview value">
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                        </svg>
+                                                        <span>Copy</span>
+                                                    </button>
+                                                    <button class="btn-diff-edit"
+                                                            @onclick="() => StartInlineEdit(entry)"
+                                                            title="Inline edit this preview value">
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <path d="M12 20h9"></path>
+                                                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                                        </svg>
+                                                        <span>Edit</span>
+                                                    </button>
+                                                </div>
+                                            }
+                                        </div>
                                     </div>
-                                    <div class="diff-after-actions" @onclick:stopPropagation="true">
-                                        <button class="btn-diff-copy"
-                                                @onclick="() => CopyText(entry.NewValue)"
-                                                title="Copy preview connection string">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                            </svg>
-                                            <span>Copy</span>
-                                        </button>
-                                        <button class="btn-diff-edit"
-                                                @onclick="() => StartInlineEdit(entry)"
-                                                title="Inline edit this preview value">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M12 20h9"></path>
-                                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                                            </svg>
-                                            <span>Edit</span>
-                                        </button>
-                                    </div>
-                                }
-                            </div>
+
+                                </div>
+                            }
                         </div>
+
                     </div>
                 }
             </div>
@@ -315,7 +399,7 @@
         else
         {
             <!-- ==============================================================
-                 COMPACT TABLE VIEW
+                 COMPACT TABLE VIEW (GROUPED BY FILE)
                  ============================================================== -->
             <table class="config-table">
                 <thead>
@@ -326,146 +410,169 @@
                                    @onchange="ToggleSelectAllFiltered"
                                    title="Select or deselect all visible rows" />
                         </th>
-                        <th class="th-file">File &amp; Path</th>
+                        <th class="th-file">Setting / Key</th>
                         <th class="th-type">Type</th>
                         <th class="th-key">Key Name</th>
-                        <th class="th-current">Current Connection String</th>
+                        <th class="th-current">Current Value</th>
                         <th class="th-preview">Preview New Value</th>
                         <th class="th-status">Status</th>
                         <th class="th-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var entry in FilteredEntries)
+                    @foreach (var fileGroup in GroupedEntries)
                     {
-                        var isXml = entry.FileType == ConfigFileType.WebConfig;
-                        var isModified = entry.Status == ConfigEntryStatus.Modified;
-                        var isSaved = entry.Status == ConfigEntryStatus.Saved;
+                        var firstEntry = fileGroup.First();
+                        var isAllSelected = fileGroup.All(e => e.IsSelected);
+                        var groupStatus = GetGroupStatus(fileGroup);
 
-                        <tr class="table-row @(entry.IsSelected ? "row-selected" : "") @(isModified ? "row-modified" : "") @(isSaved ? "row-saved" : "") @(ActiveEntry?.Id == entry.Id ? "row-active" : "")"
-                            @onclick="() => OnRowSelected.InvokeAsync(entry)">
+                        <tr class="table-group-header-row">
                             <td class="td-checkbox" @onclick:stopPropagation="true">
                                 <input type="checkbox"
-                                       @bind="entry.IsSelected"
-                                       @bind:after="NotifySelectionChange" />
+                                       checked="@isAllSelected"
+                                       @onchange="(e) => ToggleFileSelection(fileGroup.Key, (bool?)e.Value ?? false)"
+                                       title="Select all settings in this file" />
                             </td>
-
-                            <td class="td-file">
-                                <div class="file-info-cell">
-                                    <div class="file-name-row">
-                                        <span class="file-name" title="@entry.FilePath">@entry.FileName</span>
-                                        <button class="btn-icon-subtle"
-                                                @onclick="() => OnOpenFolder.InvokeAsync(entry.FilePath)"
-                                                title="Open containing folder in Windows Explorer">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                                <polyline points="15 3 21 3 21 9"></polyline>
-                                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <span class="file-dir" title="@entry.FilePath">@entry.FilePath</span>
-                                </div>
-                            </td>
-
-                            <td class="td-type">
-                                <span class="type-pill @(isXml ? "type-xml" : "type-json")">
-                                    @(isXml ? "XML web.config" : "JSON appsettings")
-                                </span>
-                                @if (!string.IsNullOrEmpty(entry.ProviderName))
-                                {
-                                    <div class="provider-info" title="Provider: @entry.ProviderName">@entry.ProviderName</div>
-                                }
-                            </td>
-
-                            <td class="td-key">
-                                <span class="key-pill" title="@entry.KeyName">@entry.KeyName</span>
-                            </td>
-
-                            <td class="td-current">
-                                <div class="code-cell">
-                                    <span class="code-snippet" title="@entry.CurrentValue">@entry.CurrentValue</span>
-                                    <button class="btn-copy" @onclick="() => CopyText(entry.CurrentValue)" title="Copy Current Value">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            <td colspan="7" class="td-group-header">
+                                <div class="group-header-content">
+                                    <span class="file-group-name">📄 @firstEntry.FileName</span>
+                                    <span class="file-group-badge">@fileGroup.Count() @(fileGroup.Count() == 1 ? "setting" : "settings")</span>
+                                    <span class="file-group-path" title="@firstEntry.FilePath">@firstEntry.FilePath</span>
+                                    <button class="btn-icon-subtle"
+                                            @onclick="() => OnOpenFolder.InvokeAsync(firstEntry.FilePath)"
+                                            title="Open containing folder in Windows Explorer">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                            <polyline points="15 3 21 3 21 9"></polyline>
+                                            <line x1="10" y1="14" x2="21" y2="3"></line>
                                         </svg>
                                     </button>
-                                </div>
-                            </td>
-
-                            <td class="td-preview">
-                                @if (entry.IsInlineEditing)
-                                {
-                                    <div class="inline-edit-box">
-                                        <input type="text"
-                                               class="form-control form-control-sm"
-                                               @bind="entry.NewValue" />
-                                        <div class="inline-edit-buttons">
-                                            <button class="btn-xs btn-primary"
-                                                    @onclick="() => SaveInlineEdit(entry)"
-                                                    title="Set New Value">
-                                                Done
-                                            </button>
-                                            <button class="btn-xs btn-secondary"
-                                                    @onclick="() => CancelInlineEdit(entry)"
-                                                    title="Cancel">
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="preview-cell @(isModified ? "preview-modified" : "")"
-                                         @onclick="() => StartInlineEdit(entry)"
-                                         title="Click to inline edit">
-                                        <span class="code-snippet">@entry.NewValue</span>
-                                        <button class="btn-pencil" title="Inline Edit">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M12 20h9"></path>
-                                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                            </td>
-
-                            <td class="td-status">
-                                <StatusBadge Status="@entry.Status" ErrorMessage="@entry.ErrorMessage" />
-                                @if (!string.IsNullOrEmpty(entry.BackupPath))
-                                {
-                                    <div class="backup-note" title="Backup created: @entry.BackupPath">
-                                        Bak: @System.IO.Path.GetFileName(entry.BackupPath)
-                                    </div>
-                                }
-                            </td>
-
-                            <td class="td-actions">
-                                <div class="action-btn-group">
-                                    <button class="btn-action-icon"
-                                            @onclick="() => OnInspectEntry.InvokeAsync(entry)"
-                                            title="Inspect &amp; Compare Diff">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <circle cx="11" cy="11" r="8"></circle>
-                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                        </svg>
-                                    </button>
-
-                                    @if (entry.Status == ConfigEntryStatus.Modified)
-                                    {
-                                        <button class="btn-action-icon btn-revert"
-                                                @onclick="() => OnRevertEntry.InvokeAsync(entry)"
-                                                title="Revert this entry to original">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <polyline points="1 4 1 10 7 10"></polyline>
-                                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                                            </svg>
-                                        </button>
-                                    }
                                 </div>
                             </td>
                         </tr>
+
+                        @foreach (var entry in fileGroup)
+                        {
+                            var isXml = entry.FileType == ConfigFileType.WebConfig;
+                            var isModified = entry.Status == ConfigEntryStatus.Modified;
+                            var isSaved = entry.Status == ConfigEntryStatus.Saved;
+
+                            <tr class="table-row @(entry.IsSelected ? "row-selected" : "") @(isModified ? "row-modified" : "") @(isSaved ? "row-saved" : "") @(ActiveEntry?.Id == entry.Id ? "row-active" : "")"
+                                @onclick="() => OnRowSelected.InvokeAsync(entry)">
+                                <td class="td-checkbox" @onclick:stopPropagation="true">
+                                    <input type="checkbox"
+                                           @bind="entry.IsSelected"
+                                           @bind:after="NotifySelectionChange" />
+                                </td>
+
+                                <td class="td-file">
+                                    <span class="file-sub-item">↳ @entry.KeyName</span>
+                                </td>
+
+                                <td class="td-type">
+                                    @if (entry.Category == ConfigCategory.ClientEndpoints)
+                                    {
+                                        <span class="type-pill type-endpoint">@(entry.FileType == ConfigFileType.AppSettingsJson ? "Service Endpoint" : "WCF Endpoint")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="type-pill type-db">DB String</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(entry.ProviderName))
+                                    {
+                                        <div class="provider-info" title="Provider/Binding: @entry.ProviderName">@entry.ProviderName</div>
+                                    }
+                                </td>
+
+                                <td class="td-key">
+                                    <span class="key-pill" title="@entry.KeyName">@entry.KeyName</span>
+                                </td>
+
+                                <td class="td-current">
+                                    <div class="code-cell">
+                                        <span class="code-snippet" title="@entry.CurrentValue">@entry.CurrentValue</span>
+                                        <button class="btn-copy" @onclick="() => CopyText(entry.CurrentValue)" title="Copy Current Value">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+
+                                <td class="td-preview">
+                                    @if (entry.IsInlineEditing)
+                                    {
+                                        <div class="inline-edit-box">
+                                            <input type="text"
+                                                   class="form-control form-control-sm"
+                                                   @bind="entry.NewValue" />
+                                            <div class="inline-edit-buttons">
+                                                <button class="btn-xs btn-primary"
+                                                        @onclick="() => SaveInlineEdit(entry)"
+                                                        title="Set New Value">
+                                                    Done
+                                                </button>
+                                                <button class="btn-xs btn-secondary"
+                                                        @onclick="() => CancelInlineEdit(entry)"
+                                                        title="Cancel">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="preview-cell @(isModified ? "preview-modified" : "")"
+                                             @onclick="() => StartInlineEdit(entry)"
+                                             title="Click to inline edit">
+                                            <span class="code-snippet">@entry.NewValue</span>
+                                            <button class="btn-pencil" title="Inline Edit">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M12 20h9"></path>
+                                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+
+                                <td class="td-status">
+                                    <StatusBadge Status="@entry.Status" ErrorMessage="@entry.ErrorMessage" />
+                                    @if (!string.IsNullOrEmpty(entry.BackupPath))
+                                    {
+                                        <div class="backup-note" title="Backup created: @entry.BackupPath">
+                                            Bak: @System.IO.Path.GetFileName(entry.BackupPath)
+                                        </div>
+                                    }
+                                </td>
+
+                                <td class="td-actions">
+                                    <div class="action-btn-group">
+                                        <button class="btn-action-icon"
+                                                @onclick="() => OnInspectEntry.InvokeAsync(entry)"
+                                                title="Inspect &amp; Compare Diff">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="11" cy="11" r="8"></circle>
+                                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                            </svg>
+                                        </button>
+
+                                        @if (entry.Status == ConfigEntryStatus.Modified)
+                                        {
+                                            <button class="btn-action-icon btn-revert"
+                                                    @onclick="() => OnRevertEntry.InvokeAsync(entry)"
+                                                    title="Revert this entry to original">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <polyline points="1 4 1 10 7 10"></polyline>
+                                                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                                                </svg>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -486,12 +593,18 @@
     private bool IsDetailedView { get; set; } = true;
     private string FilterSearchText { get; set; } = string.Empty;
     private ConfigEntryStatus? StatusFilter { get; set; }
+    private ConfigCategory? CategoryFilter { get; set; }
 
     private List<ConnectionStringEntry> FilteredEntries
     {
         get
         {
             var query = Entries.AsEnumerable();
+
+            if (CategoryFilter.HasValue)
+            {
+                query = query.Where(e => e.Category == CategoryFilter.Value);
+            }
 
             if (StatusFilter.HasValue)
             {
@@ -511,6 +624,44 @@
             }
 
             return query.ToList();
+        }
+    }
+
+    private IEnumerable<IGrouping<string, ConnectionStringEntry>> GroupedEntries =>
+        FilteredEntries.GroupBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase);
+
+    private int DistinctFilesCount =>
+        FilteredEntries.Select(e => e.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+    private int DistinctSelectedFilesCount =>
+        Entries.Where(e => e.IsSelected).Select(e => e.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+    private int DistinctTotalFilesCount =>
+        Entries.Select(e => e.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+    private ConfigEntryStatus GetGroupStatus(IEnumerable<ConnectionStringEntry> group)
+    {
+        var list = group.ToList();
+        if (list.Any(e => e.Status == ConfigEntryStatus.Error)) return ConfigEntryStatus.Error;
+        if (list.Any(e => e.Status == ConfigEntryStatus.Modified)) return ConfigEntryStatus.Modified;
+        if (list.All(e => e.Status == ConfigEntryStatus.Saved)) return ConfigEntryStatus.Saved;
+        return ConfigEntryStatus.Unchanged;
+    }
+
+    private async Task ToggleFileSelection(string filePath, bool isChecked)
+    {
+        foreach (var entry in FilteredEntries.Where(e => string.Equals(e.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            entry.IsSelected = isChecked;
+        }
+        await NotifySelectionChange();
+    }
+
+    private async Task RevertAllInFile(IEnumerable<ConnectionStringEntry> entries)
+    {
+        foreach (var entry in entries.Where(e => e.Status == ConfigEntryStatus.Modified).ToList())
+        {
+            await OnRevertEntry.InvokeAsync(entry);
         }
     }
 

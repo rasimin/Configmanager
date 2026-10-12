@@ -310,15 +310,49 @@
         int changedCount = 0;
         foreach (var entry in Entries.Where(e => e.IsSelected))
         {
-            var updated = ConnectionStringHelper.UpdateComponents(entry.CurrentValue, args);
-            if (!string.Equals(updated, entry.CurrentValue, StringComparison.Ordinal))
+            if (entry.Category == ConfigCategory.ConnectionStrings)
             {
-                entry.ApplyPreview(updated);
-                changedCount++;
+                var updated = ConnectionStringHelper.UpdateComponents(entry.CurrentValue, args);
+                if (!string.Equals(updated, entry.CurrentValue, StringComparison.Ordinal))
+                {
+                    entry.ApplyPreview(updated);
+                    changedCount++;
+                }
+            }
+            else if (entry.Category == ConfigCategory.ClientEndpoints && args.UpdateEndpoints)
+            {
+                string updatedEndpoint = entry.CurrentValue;
+
+                // 1. Direct new address
+                if (!string.IsNullOrWhiteSpace(args.EndpointNewAddress) &&
+                    (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
+                     entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    updatedEndpoint = args.EndpointNewAddress;
+                }
+                // 2. Pattern match and replace (e.g. replace host/IP/domain in URL)
+                else if (!string.IsNullOrWhiteSpace(args.EndpointFindPattern) && !string.IsNullOrWhiteSpace(args.EndpointReplacePattern))
+                {
+                    if (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
+                        entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        updatedEndpoint = System.Text.RegularExpressions.Regex.Replace(
+                            entry.CurrentValue,
+                            System.Text.RegularExpressions.Regex.Escape(args.EndpointFindPattern),
+                            args.EndpointReplacePattern,
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    }
+                }
+
+                if (!string.Equals(updatedEndpoint, entry.CurrentValue, StringComparison.Ordinal))
+                {
+                    entry.ApplyPreview(updatedEndpoint);
+                    changedCount++;
+                }
             }
         }
 
-        ScanProgressMessage = $"Parameters updated for {changedCount} selected connection string(s).";
+        ScanProgressMessage = $"Parameters updated for {changedCount} selected item(s).";
     }
 
     private void HandleApplyBulkPreview((string find, string replace, bool matchCase) args)

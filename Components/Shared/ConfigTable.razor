@@ -106,6 +106,26 @@
                         <span class="summary-pending-text">@Entries.Count(e => e.Status == ConfigEntryStatus.Modified) pending save</span>
                     }
                 </span>
+
+                @if (IsDetailedView && GroupedEntries.Any())
+                {
+                    <span class="summary-pending-dot">•</span>
+                    <div class="accordion-controls-group">
+                        <button class="btn-summary-link" @onclick="ExpandAll" title="Expand all file cards">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                            <span>Expand All</span>
+                        </button>
+                        <span class="link-sep">/</span>
+                        <button class="btn-summary-link" @onclick="CollapseAll" title="Collapse all file cards">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                            <span>Collapse All</span>
+                        </button>
+                    </div>
+                }
             </div>
 
             <div class="summary-right">
@@ -570,6 +590,19 @@
         else
         {
             CollapsedFiles.Add(filePath);
+        }
+    }
+
+    private void ExpandAll()
+    {
+        CollapsedFiles.Clear();
+    }
+
+    private void CollapseAll()
+    {
+        foreach (var entry in Entries)
+        {
+            CollapsedFiles.Add(entry.FilePath);
         }
     }
 

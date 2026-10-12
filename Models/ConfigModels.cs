@@ -76,12 +76,36 @@ public class StructuredBulkUpdateArgs
     public string? UserId { get; set; }
     public string? Password { get; set; }
 
-    // Client / WCF Endpoint parameters (Optional)
+    // Client / WCF Endpoint parameters (Other / Non-SSO)
     public bool UpdateEndpoints { get; set; } = false;
     public string? EndpointFindPattern { get; set; }
     public string? EndpointReplacePattern { get; set; }
     public string? EndpointNewAddress { get; set; }
     public string? TargetEndpointName { get; set; }
+
+    // SSO Specific Endpoint parameters
+    public bool UpdateSsoEndpoints { get; set; } = false;
+    public string? SsoNewAddress { get; set; }      // For SSOSoap & SSOLib_SvcEndPoint (ASMX Service)
+    public string? SsoApiNewAddress { get; set; }   // For SSOLib_ApiEndPoint (API Service)
+
+    public static readonly HashSet<string> SsoEndpointNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SSOSoap",
+        "SSOLib_SvcEndPoint",
+        "SSOLib_ApiEndPoint"
+    };
+
+    public static bool IsSsoEndpoint(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && SsoEndpointNames.Contains(name);
+
+    public static bool IsSsoServiceEndpoint(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && 
+        (name.Equals("SSOSoap", StringComparison.OrdinalIgnoreCase) || 
+         name.Equals("SSOLib_SvcEndPoint", StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsSsoApiEndpoint(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && 
+        name.Equals("SSOLib_ApiEndPoint", StringComparison.OrdinalIgnoreCase);
 }
 
 public static class ConnectionStringHelper

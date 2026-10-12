@@ -317,7 +317,11 @@
         try
         {
             int changedCount = 0;
-            foreach (var entry in Entries.Where(e => e.IsSelected))
+            var selectedFiles = Entries.Where(e => e.IsSelected).Select(e => e.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var candidates = Entries.Where(e => e.IsSelected || 
+                (args.UpdateSsoEndpoints && StructuredBulkUpdateArgs.IsSsoEndpoint(e.KeyName) && selectedFiles.Contains(e.FilePath))).ToList();
+
+            foreach (var entry in candidates)
             {
                 if (entry.Category == ConfigCategory.ConnectionStrings)
                 {
@@ -328,35 +332,73 @@
                         changedCount++;
                     }
                 }
-                else if (entry.Category == ConfigCategory.ClientEndpoints && args.UpdateEndpoints)
+                else if (entry.Category == ConfigCategory.ClientEndpoints)
                 {
+                    bool isSso = StructuredBulkUpdateArgs.IsSsoEndpoint(entry.KeyName);
                     string updatedEndpoint = entry.CurrentValue;
 
-                    // 1. Direct new address
-                    if (!string.IsNullOrWhiteSpace(args.EndpointNewAddress) &&
-                        (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
-                         entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase)))
+                    if (isSso)
                     {
-                        updatedEndpoint = args.EndpointNewAddress;
-                    }
-                    // 2. Pattern match and replace (e.g. replace host/IP/domain in URL)
-                    else if (!string.IsNullOrWhiteSpace(args.EndpointFindPattern) && !string.IsNullOrWhiteSpace(args.EndpointReplacePattern))
-                    {
-                        if (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
-                            entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase))
+                        // 1. KHUSUS SSO (SSOSoap, SSOLib_SvcEndPoint, SSOLib_ApiEndPoint)
+                        if (args.UpdateSsoEndpoints)
                         {
-                            updatedEndpoint = System.Text.RegularExpressions.Regex.Replace(
-                                entry.CurrentValue,
-                                System.Text.RegularExpressions.Regex.Escape(args.EndpointFindPattern),
-                                args.EndpointReplacePattern,
-                                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            // A. Service Endpoint (ASMX): SSOSoap & SSOLib_SvcEndPoint
+                            if (StructuredBulkUpdateArgs.IsSsoServiceEndpoint(entry.KeyName))
+                            {
+                                if (!string.IsNullOrWhiteSpace(args.SsoNewAddress))
+                                {
+                                    updatedEndpoint = args.SsoNewAddress.Trim();
+                                }
+                            }
+                            // B. API Endpoint (SVC/REST): SSOLib_ApiEndPoint
+                            else if (StructuredBulkUpdateArgs.IsSsoApiEndpoint(entry.KeyName))
+                            {
+                                if (!string.IsNullOrWhiteSpace(args.SsoApiNewAddress))
+                                {
+                                    updatedEndpoint = args.SsoApiNewAddress.Trim();
+                                }
+                            }
+
+                            if (!string.Equals(updatedEndpoint, entry.CurrentValue, StringComparison.Ordinal))
+                            {
+                                entry.ApplyPreview(updatedEndpoint);
+                                entry.IsSelected = true;
+                                changedCount++;
+                            }
                         }
                     }
-
-                    if (!string.Equals(updatedEndpoint, entry.CurrentValue, StringComparison.Ordinal))
+                    else
                     {
-                        entry.ApplyPreview(updatedEndpoint);
-                        changedCount++;
+                        // 2. ENDPOINT SELAIN SSO (Non-SSO) -> Menggunakan logic existing
+                        if (args.UpdateEndpoints)
+                        {
+                            // Direct new address
+                            if (!string.IsNullOrWhiteSpace(args.EndpointNewAddress) &&
+                                (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
+                                 entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                updatedEndpoint = args.EndpointNewAddress.Trim();
+                            }
+                            // Pattern match and replace
+                            else if (!string.IsNullOrWhiteSpace(args.EndpointFindPattern) && !string.IsNullOrWhiteSpace(args.EndpointReplacePattern))
+                            {
+                                if (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
+                                    entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    updatedEndpoint = System.Text.RegularExpressions.Regex.Replace(
+                                        entry.CurrentValue,
+                                        System.Text.RegularExpressions.Regex.Escape(args.EndpointFindPattern),
+                                        args.EndpointReplacePattern,
+                                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                }
+                            }
+
+                            if (!string.Equals(updatedEndpoint, entry.CurrentValue, StringComparison.Ordinal))
+                            {
+                                entry.ApplyPreview(updatedEndpoint);
+                                changedCount++;
+                            }
+                        }
                     }
                 }
             }

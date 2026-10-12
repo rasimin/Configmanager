@@ -118,20 +118,65 @@
                         </div>
                     </div>
 
-                    <!-- Optional Client Endpoints Update Section -->
+                    <!-- 1. Dedicated SSO Endpoints Update Section -->
+                    <div class="endpoint-option-card sso-card">
+                        <div class="endpoint-option-top">
+                            <label class="endpoint-checkbox-label">
+                                <input type="checkbox" class="checkbox-custom" @bind="StructuredArgs.UpdateSsoEndpoints" />
+                                <span class="endpoint-label-title">Update SSO Endpoints (Optional)</span>
+                            </label>
+                            <div class="endpoint-badges">
+                                <span class="sub-badge badge-sso">SSOSoap</span>
+                                <span class="sub-badge badge-sso">SSOLib_SvcEndPoint</span>
+                                <span class="sub-badge badge-sso">SSOLib_ApiEndPoint</span>
+                            </div>
+                        </div>
+                        <div class="endpoint-option-desc">
+                            Khusus mengatur alamat endpoint SSO (Service ASMX dan API Service).
+                        </div>
+
+                        @if (StructuredArgs.UpdateSsoEndpoints)
+                        {
+                            <div class="endpoint-subform-box">
+                                <div class="form-group">
+                                    <div class="form-label-row">
+                                        <label class="form-label-xs">SSO Service URL (SSOSoap &amp; SSOLib_SvcEndPoint)</label>
+                                        <span class="sub-badge">ASMX</span>
+                                    </div>
+                                    <input type="text"
+                                           class="form-input-sm mono"
+                                           placeholder="e.g. http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx"
+                                           @bind="StructuredArgs.SsoNewAddress" />
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="form-label-row">
+                                        <label class="form-label-xs">SSO API URL (SSOLib_ApiEndPoint)</label>
+                                        <span class="sub-badge">API / SVC</span>
+                                    </div>
+                                    <input type="text"
+                                           class="form-input-sm mono"
+                                           placeholder="e.g. http://192.168.26.21/VICTOR/SSO/api/v1.svc"
+                                           @bind="StructuredArgs.SsoApiNewAddress" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- 2. Other / Non-SSO Client Endpoints Update Section (Existing Logic) -->
                     <div class="endpoint-option-card">
                         <div class="endpoint-option-top">
                             <label class="endpoint-checkbox-label">
                                 <input type="checkbox" class="checkbox-custom" @bind="StructuredArgs.UpdateEndpoints" />
-                                <span class="endpoint-label-title">Update Client Endpoints (Optional)</span>
+                                <span class="endpoint-label-title">Update Other Endpoints (Non-SSO)</span>
                             </label>
                             <div class="endpoint-badges">
                                 <span class="sub-badge">WCF</span>
-                                <span class="sub-badge">SSO</span>
+                                <span class="sub-badge">Custom</span>
                             </div>
                         </div>
                         <div class="endpoint-option-desc">
-                            Rewrites endpoint addresses to new host automatically.
+                            Mencari dan mengganti alamat endpoint selain SSO menggunakan pola teks.
                         </div>
 
                         @if (StructuredArgs.UpdateEndpoints)
@@ -157,7 +202,7 @@
                                     <label class="form-label-xs">Specific Full URL (Optional)</label>
                                     <input type="text"
                                            class="form-input-sm mono"
-                                           placeholder="e.g. http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx"
+                                           placeholder="e.g. http://192.168.26.21/VICTOR/Other/Service.svc"
                                            @bind="StructuredArgs.EndpointNewAddress" />
                                 </div>
 
@@ -165,7 +210,7 @@
                                     <label class="form-label-xs">Target Endpoint Name (Optional)</label>
                                     <input type="text"
                                            class="form-input-sm mono"
-                                           placeholder="e.g. SSOSoap (or blank for all)"
+                                           placeholder="e.g. OtherSoap (or blank for all other)"
                                            @bind="StructuredArgs.TargetEndpointName" />
                                 </div>
                             </div>
@@ -481,6 +526,9 @@
         string.IsNullOrWhiteSpace(StructuredArgs.Database) &&
         string.IsNullOrWhiteSpace(StructuredArgs.UserId) &&
         string.IsNullOrWhiteSpace(StructuredArgs.Password) &&
+        (!StructuredArgs.UpdateSsoEndpoints || (
+            string.IsNullOrWhiteSpace(StructuredArgs.SsoNewAddress) &&
+            string.IsNullOrWhiteSpace(StructuredArgs.SsoApiNewAddress))) &&
         (!StructuredArgs.UpdateEndpoints || (
             string.IsNullOrWhiteSpace(StructuredArgs.EndpointFindPattern) &&
             string.IsNullOrWhiteSpace(StructuredArgs.EndpointReplacePattern) &&

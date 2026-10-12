@@ -607,6 +607,13 @@ body {
     color: var(--text-muted);
 }
 
+.summary-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
 .summary-left strong {
     color: var(--text);
     font-weight: 600;
@@ -625,6 +632,33 @@ body {
 .summary-pending-text {
     color: var(--accent-amber-text);
     font-weight: 500;
+}
+
+.accordion-controls-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 2px;
+}
+
+.btn-summary-link {
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+
+.btn-summary-link:hover {
+    color: var(--text);
+    background: var(--surface-2);
 }
 
 .shortcut-hints {
@@ -1419,6 +1453,35 @@ body {
     font-size: 9px;
     color: var(--text-muted);
     font-weight: 500;
+}
+
+.sso-card {
+    border-color: #E9D5FF;
+    background: #FAF8FF;
+}
+
+.badge-sso {
+    background: #F3E8FF;
+    color: #6B21A8;
+    border-color: #D8B4FE;
+    font-weight: 600;
+}
+
+.sso-or-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin: 6px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.form-group-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .endpoint-option-desc {

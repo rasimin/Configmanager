@@ -121,11 +121,16 @@ D:\Rasimin\Learn\SetConfigNetCore\
    - Tab **"Client Endpoints"**: Mendeteksi dan mengelola tag WCF `<system.serviceModel><client><endpoint address="..." />` pada `web.config` **DAN** endpoint layanan JSON pada `appsettings.json` (seperti `SSOLib_SvcEndPoint`, `SSOLib_ApiEndPoint` pada `SSOLibConfigs`).
    - Tab **"App Settings"** & **"Env Vars"**: Disiapkan untuk ekspansi modular berikutnya.
 4. **Override Sekaligus (Simultaneous Replacement - Opsional):**
-   - Saat mengubah Connection Strings di panel kanan, tersedia opsi **"Update Client Endpoints (Optional)"**:
-     - Pengguna dapat mengisi parameter database (Host, Database, User, Password) **DAN** sekaligus mengisi parameter endpoint (Target Match in URL, Replace With, atau Specific Full URL untuk endpoint SSO/service).
-     - Sekali klik **"Apply to Selected"**, perubahan connection string dan perubahan endpoint langsung diaplikasikan dan di-preview bersamaan.
-     - Sifatnya **100% opsional**: jika opsi endpoint tidak dicentang / dikosongkan, seluruh endpoint tetap aman dan tidak akan disentuh.
-     - Saat **"Save All Changes"** dijalankan, kedua perubahan dituliskan ke file (`web.config` maupun `appsettings.json`) dalam satu pass penulisan atomik tanpa merusak formatting atau komentar.
+   - Saat mengubah Connection Strings di panel kanan, tersedia 2 opsi endpoint terpisah:
+     1. **`Update SSO Endpoints (Optional)`**:
+        - Khusus menargetkan endpoint ekosistem SSO dengan 2 URL spesifik:
+          - **SSO Service URL (ASMX):** Menargetkan `SSOSoap` (pada `web.config`) dan `SSOLib_SvcEndPoint` (pada `appsettings.json`), misalnya `http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx`.
+          - **SSO API URL (SVC/REST):** Menargetkan `SSOLib_ApiEndPoint` (pada `appsettings.json`), misalnya `http://192.168.26.21/VICTOR/SSO/api/v1.svc`.
+        - Jika opsi ini tidak dicentang, seluruh endpoint SSO aman dan tidak akan disentuh.
+     2. **`Update Other Endpoints (Non-SSO)`**:
+        - Menggunakan logika pencarian dan penggantian berbasis pola (`Find in Endpoint URL` & `Replace with`) atau target URL spesifik untuk endpoint layanan selain SSO (Payment, Reporting, Custom Service).
+   - Sekali klik **"Apply to Selected"**, perubahan connection string dan perubahan endpoint diaplikasikan dan di-preview bersamaan.
+   - Saat **"Save All Changes"** dijalankan, seluruh perubahan dituliskan ke file (`web.config` maupun `appsettings.json`) dalam satu pass penulisan atomik tanpa merusak formatting atau komentar.
 5. **Override Parameter Terstruktur (Structured Parameters) & EntityClient / EF Support:**
    - Mengubah parameter spesifik database tanpa merusak parameter lain:
      - **Host / Server:** Mengupdate `Data Source`, `Server`, `Host`, atau `Addr`.

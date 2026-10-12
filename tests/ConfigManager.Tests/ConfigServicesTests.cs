@@ -427,5 +427,97 @@ public class ConfigServicesTests
         Assert.Contains("Data Source=192.168.26.21;", updated);
         Assert.Contains("Initial Catalog=MyDb;", updated);
     }
+
+    [Fact]
+    public void StructuredBulkUpdateArgs_IsSsoEndpoint_IdentifiesSsoEndpoints()
+    {
+        Assert.True(StructuredBulkUpdateArgs.IsSsoEndpoint("SSOSoap"));
+        Assert.True(StructuredBulkUpdateArgs.IsSsoEndpoint("ssosoap"));
+        Assert.True(StructuredBulkUpdateArgs.IsSsoEndpoint("SSOLib_SvcEndPoint"));
+        Assert.True(StructuredBulkUpdateArgs.IsSsoEndpoint("ssolib_svcendpoint"));
+        Assert.True(StructuredBulkUpdateArgs.IsSsoEndpoint("SSOLib_ApiEndPoint"));
+        Assert.True(StructuredBulkUpdateArgs.IsSsoEndpoint("ssolib_apiendpoint"));
+        
+        Assert.True(StructuredBulkUpdateArgs.IsSsoServiceEndpoint("SSOSoap"));
+        Assert.True(StructuredBulkUpdateArgs.IsSsoServiceEndpoint("SSOLib_SvcEndPoint"));
+        Assert.False(StructuredBulkUpdateArgs.IsSsoServiceEndpoint("SSOLib_ApiEndPoint"));
+
+        Assert.True(StructuredBulkUpdateArgs.IsSsoApiEndpoint("SSOLib_ApiEndPoint"));
+        Assert.False(StructuredBulkUpdateArgs.IsSsoApiEndpoint("SSOSoap"));
+        Assert.False(StructuredBulkUpdateArgs.IsSsoApiEndpoint("SSOLib_SvcEndPoint"));
+
+        Assert.False(StructuredBulkUpdateArgs.IsSsoEndpoint("OtherServiceSoap"));
+        Assert.False(StructuredBulkUpdateArgs.IsSsoEndpoint("PaymentClient"));
+        Assert.False(StructuredBulkUpdateArgs.IsSsoEndpoint(null));
+    }
+
+    [Fact]
+    public void SsoAndNonSsoEndpoints_UpdateLogic_SeparatesServiceAndApiEndpoints()
+    {
+        var ssoXmlEntry = new ConnectionStringEntry
+        {
+            KeyName = "SSOSoap",
+            Category = ConfigCategory.ClientEndpoints,
+            CurrentValue = "http://localhost/VICTOR/SSO/Service/SSO.asmx"
+        };
+
+        var ssoJsonSvcEntry = new ConnectionStringEntry
+        {
+            KeyName = "SSOLib_SvcEndPoint",
+            Category = ConfigCategory.ClientEndpoints,
+            CurrentValue = "http://192.168.69.26/DEV_SSO/Service/SSO.asmx"
+        };
+
+        var ssoJsonApiEntry = new ConnectionStringEntry
+        {
+            KeyName = "SSOLib_ApiEndPoint",
+            Category = ConfigCategory.ClientEndpoints,
+            CurrentValue = "http://192.168.69.26/DEV_SSO/api/v1.svc",
+            NewValue = "http://192.168.69.26/DEV_SSO/api/v1.svc"
+        };
+
+        var otherEndpointEntry = new ConnectionStringEntry
+        {
+            KeyName = "PaymentService",
+            Category = ConfigCategory.ClientEndpoints,
+            CurrentValue = "http://localhost/VICTOR/Payment/Pay.svc",
+            NewValue = "http://localhost/VICTOR/Payment/Pay.svc"
+        };
+
+        var ssoArgs = new StructuredBulkUpdateArgs
+        {
+            UpdateSsoEndpoints = true,
+            SsoNewAddress = "http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx",
+            SsoApiNewAddress = "http://192.168.26.21/VICTOR/SSO/api/v1.svc",
+            UpdateEndpoints = false
+        };
+
+        // Service Endpoints (SSOSoap & SSOLib_SvcEndPoint) get SsoNewAddress
+        if (StructuredBulkUpdateArgs.IsSsoServiceEndpoint(ssoXmlEntry.KeyName) && ssoArgs.UpdateSsoEndpoints)
+        {
+            ssoXmlEntry.ApplyPreview(ssoArgs.SsoNewAddress!);
+        }
+        if (StructuredBulkUpdateArgs.IsSsoServiceEndpoint(ssoJsonSvcEntry.KeyName) && ssoArgs.UpdateSsoEndpoints)
+        {
+            ssoJsonSvcEntry.ApplyPreview(ssoArgs.SsoNewAddress!);
+        }
+
+        // Api Endpoint (SSOLib_ApiEndPoint) gets SsoApiNewAddress
+        if (StructuredBulkUpdateArgs.IsSsoApiEndpoint(ssoJsonApiEntry.KeyName) && ssoArgs.UpdateSsoEndpoints)
+        {
+            ssoJsonApiEntry.ApplyPreview(ssoArgs.SsoApiNewAddress!);
+        }
+
+        // Non-SSO remains unchanged
+        if (!StructuredBulkUpdateArgs.IsSsoEndpoint(otherEndpointEntry.KeyName) && ssoArgs.UpdateEndpoints)
+        {
+            otherEndpointEntry.ApplyPreview("changed");
+        }
+
+        Assert.Equal("http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx", ssoXmlEntry.NewValue);
+        Assert.Equal("http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx", ssoJsonSvcEntry.NewValue);
+        Assert.Equal("http://192.168.26.21/VICTOR/SSO/api/v1.svc", ssoJsonApiEntry.NewValue);
+        Assert.Equal("http://localhost/VICTOR/Payment/Pay.svc", otherEndpointEntry.NewValue);
+    }
 }
 

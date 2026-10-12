@@ -6,11 +6,12 @@
 ---
 
 ## 1. Ikhtisar Aplikasi
-**ConfigManager** adalah aplikasi desktop modern yang dirancang khusus untuk mengelola, mereview, dan mengubah nilai Connection Strings secara massal (bulk replace) pada file konfigurasi:
-- **XML:** `web.config` (.NET Framework / ASP.NET)
+**ConfigManager** adalah aplikasi desktop modern yang dirancang khusus untuk mengelola, mereview, dan mengubah nilai Connection Strings dan Client/WCF Endpoints secara massal (bulk replace) pada file konfigurasi:
+- **XML:** `web.config` (.NET Framework / ASP.NET / WCF)
 - **JSON:** `appsettings.json` dan `appsettings.*.json` (.NET Core / .NET 5/6/7/8/9)
 
-Aplikasi ini dibangun menggunakan arsitektur **WPF dengan Blazor Hybrid (`Microsoft.AspNetCore.Components.WebView.Wpf`)**, menggabungkan keandalan akses sistem file Windows native dan tampilan UI web modern berbasis **shadcn/ui (Zinc Dark Theme & Geist/Inter Typography)**.
+Aplikasi ini dibangun menggunakan arsitektur **WPF dengan Blazor Hybrid (`Microsoft.AspNetCore.Components.WebView.Wpf`)**, menggabungkan keandalan akses sistem file Windows native dan tampilan UI web modern berbasis **Minimalist Warm Ivory Design System** (mengadopsi `sample/Config-Manager-Minimal.html` dengan palet warna off-white `#FCFCF9`, pure white cards `#FFFFFF` beresolusi tinggi, accordion collapsible per file, token-level diff amber highlighting, dan typography Inter).
+
 
 ---
 
@@ -30,9 +31,11 @@ D:\Rasimin\Learn\SetConfigNetCore\
 │   └── ConfigModels.cs                       # Model data ConnectionStringEntry, enums & results
 │
 ├── Services/
+│   ├── LoggerService.cs                      # Logging & Error Tracing persistent log file
 │   ├── ConfigParserService.cs                # Engine parser XML (XDocument) & JSON (JsonNode) + Backup
 │   ├── ConfigScanService.cs                  # Engine scanner rekursif aman & batch saving
 │   └── FolderPickerService.cs                # Integrasi dialog Windows native & Explorer
+
 │
 ├── Components/
 │   ├── App.razor                             # Blazor Router

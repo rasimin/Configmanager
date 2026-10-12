@@ -389,4 +389,43 @@ public class ConfigServicesTests
         Assert.Contains(@"provider connection string=""data source=192.168.26.21\sql2019;", updatedEf);
         Assert.EndsWith(@"""", updatedEf);
     }
+
+    [Fact]
+    public void LoggerService_CreatesLogFileAndWritesExceptionDetails()
+    {
+        var logger = new LoggerService();
+        var testMessage = "Test error message for diagnostics";
+        var testException = new InvalidOperationException("Test inner exception details");
+
+        logger.LogError(testMessage, testException);
+
+        var logFile = logger.CurrentLogFilePath;
+        Assert.True(File.Exists(logFile), $"Log file was not created: {logFile}");
+
+        var content = File.ReadAllText(logFile);
+        Assert.Contains(testMessage, content);
+        Assert.Contains("InvalidOperationException", content);
+        Assert.Contains("Test inner exception details", content);
+    }
+
+    [Fact]
+    public void ConnectionStringHelper_HandlesDuplicateKeysWithoutException()
+    {
+        // Connection string with duplicate 'Persist Security Info' parameter
+        var duplicateKeyStr = "Data Source=192.168.1.1;Initial Catalog=MyDb;Persist Security Info=True;User ID=sa;Password=secret;Persist Security Info=True;";
+
+        var parsed = ConnectionStringHelper.Parse(duplicateKeyStr);
+        Assert.Equal("192.168.1.1", parsed.Server);
+        Assert.Equal("MyDb", parsed.Database);
+
+        var args = new StructuredBulkUpdateArgs
+        {
+            Server = "192.168.26.21"
+        };
+
+        var updated = ConnectionStringHelper.UpdateComponents(duplicateKeyStr, args);
+        Assert.Contains("Data Source=192.168.26.21;", updated);
+        Assert.Contains("Initial Catalog=MyDb;", updated);
+    }
 }
+

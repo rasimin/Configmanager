@@ -5,129 +5,132 @@
 @inject IConfigScanService ScanService
 @inject IConfigParserService ParserService
 @inject IFolderPickerService FolderPicker
+@inject ILoggerService Logger
 
-<div class="workspace-layout">
-    <!-- Left Main Panel: Scanner & Table -->
-    <main class="workspace-main">
-        <!-- Minimalist Scanner Command Bar -->
-        <div class="scanner-bar">
-            <div class="scanner-input-wrap">
-                <svg class="scanner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input type="text"
-                       class="scanner-input"
-                       placeholder="Enter folder or file path to scan (e.g. C:\inetpub\wwwroot or D:\Apps)..."
-                       @bind="InputPath"
-                       @bind:event="oninput"
-                       @onkeyup="HandleInputKeyUp" />
-            </div>
 
-            <div class="scanner-actions-group">
-                <button class="btn btn-secondary btn-scanner-action" @onclick="BrowseFolder" title="Browse target folder">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    <span>Folder</span>
-                </button>
-
-                <button class="btn btn-secondary btn-scanner-action" @onclick="BrowseFiles" title="Browse specific config file(s)">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="12" y1="18" x2="12" y2="12"></line>
-                        <line x1="9" y1="15" x2="15" y2="15"></line>
-                    </svg>
-                    <span>File(s)</span>
-                </button>
-
-                @if (!string.IsNullOrWhiteSpace(InputPath))
-                {
-                    <button class="btn btn-outline btn-scanner-action" @onclick="AddPathToList" title="Add path to multi-target queue">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        <span>Add</span>
-                    </button>
-                }
-
-                <div class="scanner-separator"></div>
-
-                <label class="checkbox-label-compact" title="Search all subfolders recursively">
-                    <input type="checkbox" @bind="IsRecursive" />
-                    <span>Recursive</span>
-                </label>
-
-                <button class="btn btn-primary btn-scanner-action" @onclick="StartScanAsync" disabled="@IsScanning">
-                    @if (IsScanning)
-                    {
-                        <span class="spinner-small"></span>
-                        <span>Scanning...</span>
-                    }
-                    else
-                    {
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <polyline points="1 20 1 14 7 14"></polyline>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                        </svg>
-                        <span>Scan</span>
-                    }
-                </button>
-            </div>
+<div class="workspace-container">
+    <!-- Top Scanner Command Bar -->
+    <div class="scanner-bar">
+        <div class="scanner-path-pill">
+            <svg class="scanner-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text"
+                   class="scanner-input"
+                   placeholder="Enter folder or file path to scan..."
+                   @bind="InputPath"
+                   @bind:event="oninput"
+                   @onkeyup="HandleInputKeyUp" />
+            @if (DistinctFilesCount > 0)
+            {
+                <span class="scanner-indexed-badge">@DistinctFilesCount files indexed</span>
+            }
         </div>
 
-        @if (TargetPaths.Count > 1)
-        {
-            <div class="target-paths-list">
-                <span class="target-paths-title">Queue:</span>
-                @foreach (var p in TargetPaths)
-                {
-                    <div class="target-path-pill">
-                        <span class="pill-text" title="@p">@p</span>
-                        <button class="pill-remove" @onclick="() => RemovePath(p)">&times;</button>
-                    </div>
-                }
-                <button class="btn-xs btn-outline" @onclick="() => TargetPaths.Clear()">Clear</button>
-            </div>
-        }
+        <div class="scanner-actions">
+            <button class="btn-pill-subtle" @onclick="BrowseFolder" title="Browse target folder">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>Folder</span>
+            </button>
 
-        @if (IsScanning || !string.IsNullOrEmpty(ScanProgressMessage))
-        {
-            <div class="scan-status-line">
+            <button class="btn-pill-subtle" @onclick="BrowseFiles" title="Browse specific config file(s)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span>File(s)</span>
+            </button>
+
+            @if (!string.IsNullOrWhiteSpace(InputPath))
+            {
+                <button class="btn-pill-icon" @onclick="AddPathToList" title="Add path to multi-target queue">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+            }
+
+            <label class="scanner-checkbox-label" title="Search all subfolders recursively">
+                <input type="checkbox" @bind="IsRecursive" />
+                <span>Recursive</span>
+            </label>
+
+            <button class="btn-pill-dark btn-scan" @onclick="StartScanAsync" disabled="@IsScanning">
                 @if (IsScanning)
                 {
                     <span class="spinner-small"></span>
+                    <span>Scanning...</span>
                 }
-                <span>@ScanProgressMessage</span>
-            </div>
-        }
+                else
+                {
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    <span>Scan</span>
+                }
+            </button>
+        </div>
+    </div>
 
-        <!-- Table of Results -->
-        <ConfigTable Entries="@Entries"
-                     ActiveEntry="@ActiveEntry"
-                     OnRowSelected="HandleRowSelected"
-                     OnInspectEntry="HandleInspectEntry"
-                     OnRevertEntry="HandleRevertEntry"
-                     OnOpenFolder="HandleOpenFolder"
-                     OnSelectionChanged="HandleSelectionChanged" />
-    </main>
+    @if (TargetPaths.Count > 1)
+    {
+        <div class="target-paths-list">
+            <span class="target-paths-title">Queue:</span>
+            @foreach (var p in TargetPaths)
+            {
+                <div class="target-path-pill">
+                    <span class="pill-text" title="@p">@p</span>
+                    <button class="pill-remove" @onclick="() => RemovePath(p)">&times;</button>
+                </div>
+            }
+            <button class="btn-xs btn-outline" @onclick="() => TargetPaths.Clear()">Clear</button>
+        </div>
+    }
 
-    <!-- Right Inspector & Settings Panel -->
-    <aside class="workspace-sidebar">
-        <RightSettingsPanel TotalCount="@Entries.Count"
-                            SelectedCount="@SelectedCount"
-                            ModifiedCount="@ModifiedCount"
-                            ActiveEntry="@ActiveEntry"
-                            IsSaving="@IsSaving"
-                            OnApplyStructured="HandleApplyStructured"
-                            OnApplyRaw="HandleApplyBulkPreview"
-                            OnResetPreview="HandleResetPreviews"
-                            OnSaveAllClicked="OpenSaveConfirmation"
-                            OnInspectModal="HandleInspectEntry" />
-    </aside>
+    @if (IsScanning || !string.IsNullOrEmpty(ScanProgressMessage))
+    {
+        <div class="scan-status-line">
+            @if (IsScanning)
+            {
+                <span class="spinner-small"></span>
+            }
+            <span>@ScanProgressMessage</span>
+        </div>
+    }
+
+    <!-- 2-Column Responsive Workspace Layout -->
+    <div class="workspace-grid">
+        <!-- Left Column: Table of Results & Stacked Diffs -->
+        <main class="workspace-main">
+            <ConfigTable Entries="@Entries"
+                         ActiveEntry="@ActiveEntry"
+                         OnRowSelected="HandleRowSelected"
+                         OnInspectEntry="HandleInspectEntry"
+                         OnRevertEntry="HandleRevertEntry"
+                         OnOpenFolder="HandleOpenFolder"
+                         OnSelectionChanged="HandleSelectionChanged" />
+        </main>
+
+        <!-- Right Column: Inspector & Bulk Override Panel -->
+        <aside class="workspace-sidebar">
+            <RightSettingsPanel TotalCount="@Entries.Count"
+                                SelectedCount="@SelectedCount"
+                                ModifiedCount="@ModifiedCount"
+                                ActiveEntry="@ActiveEntry"
+                                IsSaving="@IsSaving"
+                                OnApplyStructured="HandleApplyStructured"
+                                OnApplyRaw="HandleApplyBulkPreview"
+                                OnResetPreview="HandleResetPreviews"
+                                OnSaveAllClicked="OpenSaveConfirmation"
+                                OnInspectModal="HandleInspectEntry" />
+        </aside>
+    </div>
 
     <!-- Modals -->
     <ConfirmSaveModal @bind-IsOpen="IsSaveModalOpen"
@@ -202,6 +205,10 @@
                                              .Select(e => e.FilePath)
                                              .Distinct(StringComparer.OrdinalIgnoreCase)
                                              .Count();
+    private int DistinctFilesCount => Entries.Select(e => e.FilePath)
+                                             .Distinct(StringComparer.OrdinalIgnoreCase)
+                                             .Count();
+
 
     protected override void OnInitialized()
     {
@@ -307,84 +314,101 @@
 
     private void HandleApplyStructured(StructuredBulkUpdateArgs args)
     {
-        int changedCount = 0;
-        foreach (var entry in Entries.Where(e => e.IsSelected))
+        try
         {
-            if (entry.Category == ConfigCategory.ConnectionStrings)
+            int changedCount = 0;
+            foreach (var entry in Entries.Where(e => e.IsSelected))
             {
-                var updated = ConnectionStringHelper.UpdateComponents(entry.CurrentValue, args);
-                if (!string.Equals(updated, entry.CurrentValue, StringComparison.Ordinal))
+                if (entry.Category == ConfigCategory.ConnectionStrings)
                 {
-                    entry.ApplyPreview(updated);
-                    changedCount++;
-                }
-            }
-            else if (entry.Category == ConfigCategory.ClientEndpoints && args.UpdateEndpoints)
-            {
-                string updatedEndpoint = entry.CurrentValue;
-
-                // 1. Direct new address
-                if (!string.IsNullOrWhiteSpace(args.EndpointNewAddress) &&
-                    (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
-                     entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase)))
-                {
-                    updatedEndpoint = args.EndpointNewAddress;
-                }
-                // 2. Pattern match and replace (e.g. replace host/IP/domain in URL)
-                else if (!string.IsNullOrWhiteSpace(args.EndpointFindPattern) && !string.IsNullOrWhiteSpace(args.EndpointReplacePattern))
-                {
-                    if (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
-                        entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase))
+                    var updated = ConnectionStringHelper.UpdateComponents(entry.CurrentValue, args);
+                    if (!string.Equals(updated, entry.CurrentValue, StringComparison.Ordinal))
                     {
-                        updatedEndpoint = System.Text.RegularExpressions.Regex.Replace(
-                            entry.CurrentValue,
-                            System.Text.RegularExpressions.Regex.Escape(args.EndpointFindPattern),
-                            args.EndpointReplacePattern,
-                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        entry.ApplyPreview(updated);
+                        changedCount++;
                     }
                 }
-
-                if (!string.Equals(updatedEndpoint, entry.CurrentValue, StringComparison.Ordinal))
+                else if (entry.Category == ConfigCategory.ClientEndpoints && args.UpdateEndpoints)
                 {
-                    entry.ApplyPreview(updatedEndpoint);
-                    changedCount++;
+                    string updatedEndpoint = entry.CurrentValue;
+
+                    // 1. Direct new address
+                    if (!string.IsNullOrWhiteSpace(args.EndpointNewAddress) &&
+                        (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
+                         entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        updatedEndpoint = args.EndpointNewAddress;
+                    }
+                    // 2. Pattern match and replace (e.g. replace host/IP/domain in URL)
+                    else if (!string.IsNullOrWhiteSpace(args.EndpointFindPattern) && !string.IsNullOrWhiteSpace(args.EndpointReplacePattern))
+                    {
+                        if (string.IsNullOrWhiteSpace(args.TargetEndpointName) ||
+                            entry.KeyName.Equals(args.TargetEndpointName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            updatedEndpoint = System.Text.RegularExpressions.Regex.Replace(
+                                entry.CurrentValue,
+                                System.Text.RegularExpressions.Regex.Escape(args.EndpointFindPattern),
+                                args.EndpointReplacePattern,
+                                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        }
+                    }
+
+                    if (!string.Equals(updatedEndpoint, entry.CurrentValue, StringComparison.Ordinal))
+                    {
+                        entry.ApplyPreview(updatedEndpoint);
+                        changedCount++;
+                    }
                 }
             }
-        }
 
-        ScanProgressMessage = $"Parameters updated for {changedCount} selected item(s).";
+            ScanProgressMessage = $"Parameters updated for {changedCount} selected item(s).";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Error applying structured parameters", ex);
+            ScanProgressMessage = $"Error updating parameters: {ex.Message}";
+        }
     }
 
     private void HandleApplyBulkPreview((string find, string replace, bool matchCase) args)
     {
-        var comparison = args.matchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-        int changedCount = 0;
-
-        foreach (var entry in Entries.Where(e => e.IsSelected))
+        try
         {
-            if (entry.CurrentValue.Contains(args.find, comparison))
+            var comparison = args.matchCase ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            int changedCount = 0;
+
+            foreach (var entry in Entries.Where(e => e.IsSelected))
             {
-                string updated;
-                if (args.matchCase)
+                if (entry.CurrentValue.Contains(args.find, comparison))
                 {
-                    updated = entry.CurrentValue.Replace(args.find, args.replace);
-                }
-                else
-                {
-                    updated = System.Text.RegularExpressions.Regex.Replace(
-                        entry.CurrentValue,
-                        System.Text.RegularExpressions.Regex.Escape(args.find),
-                        args.replace,
-                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                }
+                    string updated;
+                    if (args.matchCase)
+                    {
+                        updated = entry.CurrentValue.Replace(args.find, args.replace);
+                    }
+                    else
+                    {
+                        updated = System.Text.RegularExpressions.Regex.Replace(
+                            entry.CurrentValue,
+                            System.Text.RegularExpressions.Regex.Escape(args.find),
+                            args.replace,
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    }
 
-                entry.ApplyPreview(updated);
-                changedCount++;
+                    entry.ApplyPreview(updated);
+                    changedCount++;
+                }
             }
-        }
 
-        ScanProgressMessage = $"Updated preview for {changedCount} selected connection string(s).";
+            ScanProgressMessage = $"Updated preview for {changedCount} selected connection string(s).";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Error applying raw string replacement", ex);
+            ScanProgressMessage = $"Error in find & replace: {ex.Message}";
+        }
     }
+
 
     private void HandleResetPreviews()
     {

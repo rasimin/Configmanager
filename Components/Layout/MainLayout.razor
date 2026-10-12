@@ -1,40 +1,85 @@
 @inherits LayoutComponentBase
 @namespace ConfigManager.Components.Layout
+@using ConfigManager.Services
+@inject ILoggerService Logger
+@inject IFolderPickerService FolderPicker
 
 <div class="app-layout">
     <header class="app-header">
-        <div class="header-brand">
-            <div class="brand-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                </svg>
-            </div>
-            <div class="brand-title-wrap">
+        <div class="header-inner">
+            <div class="header-brand">
+                <span class="brand-dot"></span>
                 <span class="brand-title">ConfigManager</span>
                 <span class="brand-badge">v1.0</span>
             </div>
-        </div>
 
-        <div class="header-actions">
-            <div class="header-status">
-                <span class="status-pulse"></span>
-                <span>Auto-Backup</span>
+            <div class="header-status-wrap">
+                <button class="btn-subtle-link" @onclick="OpenLogsFolder" title="Open error logs folder">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    <span>Logs</span>
+                </button>
+
+                <span class="status-bullet"></span>
+                <span class="status-label">Auto-Backup</span>
+                <span class="status-bullet"></span>
+                <div class="status-indicator">
+                    <span class="status-pulse-dot"></span>
+                    <span class="status-state-text">On</span>
+                </div>
             </div>
         </div>
     </header>
 
     <main class="app-main">
-        @Body
+        <ErrorBoundary @ref="errorBoundary">
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent Context="ex">
+                @{
+                    Logger.LogError("Blazor ErrorBoundary caught an unhandled rendering error", ex);
+                }
+                <div class="error-boundary-box">
+                    <div class="error-boundary-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <strong>Terjadi Kesalahan Tampilan</strong>
+                    </div>
+                    <p class="error-boundary-msg">@ex.Message</p>
+                    <p class="error-boundary-note">Detail error telah dicatat ke file log:</p>
+                    <code class="error-boundary-path">@Logger.CurrentLogFilePath</code>
+                    <div class="error-boundary-actions">
+                        <button class="btn-pill-dark btn-xs" @onclick="() => errorBoundary?.Recover()">Pulihkan Tampilan</button>
+                        <button class="btn-pill-subtle btn-xs" @onclick="OpenLogsFolder">Buka Folder Log</button>
+                    </div>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
     </main>
 
     <footer class="app-footer">
-        <div class="footer-left">
-            <span>ConfigManager &bull; Windows x64</span>
-        </div>
-        <div class="footer-right">
-            <span>web.config &bull; appsettings.json</span>
+        <div class="footer-inner">
+            <span>ConfigManager &bull; Minimal rebuild &bull; Error Tracing Enabled</span>
+            <div class="footer-right-info">
+                <span class="footer-shortcut">Log: @Logger.CurrentLogFilePath</span>
+            </div>
         </div>
     </footer>
 </div>
+
+@code {
+    private ErrorBoundary? errorBoundary;
+
+    private void OpenLogsFolder()
+    {
+        FolderPicker.OpenFolderInExplorer(Logger.LogDirectory);
+    }
+}

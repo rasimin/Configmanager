@@ -6,7 +6,9 @@
         Title="ConfigManager - Bulk Connection String Editor (.NET 9)"
         Height="900" Width="1440"
         MinHeight="650" MinWidth="1050"
+        Background="#FCFCF9"
         WindowStartupLocation="CenterScreen">
+
     <Grid>
         <blazor:BlazorWebView HostPage="wwwroot/index.html" Services="{DynamicResource services}">
             <blazor:BlazorWebView.RootComponents>

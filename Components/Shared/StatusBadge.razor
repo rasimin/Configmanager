@@ -3,29 +3,29 @@
 
 @if (Status == ConfigEntryStatus.Unchanged)
 {
-    <span class="badge badge-neutral" title="Current value matches disk">
-        <span class="badge-dot dot-neutral"></span>
+    <span class="badge badge-unchanged" title="Current value matches disk">
+        <span class="badge-dot dot-unchanged"></span>
         Unchanged
     </span>
 }
 else if (Status == ConfigEntryStatus.Modified)
 {
-    <span class="badge badge-warning" title="Value has pending changes to save">
-        <span class="badge-dot dot-warning"></span>
+    <span class="badge badge-modified" title="Value has pending changes to save">
+        <span class="badge-dot dot-modified animate-pulse"></span>
         Modified
     </span>
 }
 else if (Status == ConfigEntryStatus.Saved)
 {
-    <span class="badge badge-success" title="Changes successfully written to disk. Backup created.">
-        <span class="badge-dot dot-success"></span>
+    <span class="badge badge-saved" title="Changes successfully written to disk. Backup created.">
+        <span class="badge-dot dot-saved"></span>
         Saved
     </span>
 }
 else if (Status == ConfigEntryStatus.Error)
 {
-    <span class="badge badge-danger" title="@ErrorMessage">
-        <span class="badge-dot dot-danger"></span>
+    <span class="badge badge-error" title="@ErrorMessage">
+        <span class="badge-dot dot-error"></span>
         Error
     </span>
 }
@@ -34,3 +34,4 @@ else if (Status == ConfigEntryStatus.Error)
     [Parameter] public ConfigEntryStatus Status { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
 }
+

@@ -841,6 +841,17 @@ body {
     color: var(--text);
 }
 
+.file-folder-sep {
+    color: var(--text-muted);
+    font-weight: 400;
+    margin: 0 2px;
+}
+
+.file-folder-name {
+    color: var(--text);
+    font-weight: 600;
+}
+
 .item-count-badge {
     background: var(--surface-2);
     color: var(--text-muted);

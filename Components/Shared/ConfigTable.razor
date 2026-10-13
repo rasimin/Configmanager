@@ -200,7 +200,14 @@
 
                                 <div class="file-title-block">
                                     <div class="file-title-line">
-                                        <span class="file-name-text">@firstEntry.FileName</span>
+                                        <span class="file-name-text">
+                                            @firstEntry.FileName
+                                            @if (!string.IsNullOrEmpty(firstEntry.FolderName))
+                                            {
+                                                <span class="file-folder-sep"> - </span>
+                                                <span class="file-folder-name">@firstEntry.FolderName</span>
+                                            }
+                                        </span>
                                         <span class="item-count-badge">
                                             @fileGroup.Count() @(fileGroup.Count() == 1 ? "setting" : "settings")
                                         </span>
@@ -433,7 +440,14 @@
                             </td>
                             <td colspan="7" class="td-group-header">
                                 <div class="group-header-content">
-                                    <span class="file-group-name">@firstEntry.FileName</span>
+                                    <span class="file-group-name">
+                                        @firstEntry.FileName
+                                        @if (!string.IsNullOrEmpty(firstEntry.FolderName))
+                                        {
+                                            <span class="file-folder-sep"> - </span>
+                                            <span class="file-folder-name">@firstEntry.FolderName</span>
+                                        }
+                                    </span>
                                     <span class="item-count-badge">@fileGroup.Count() @(fileGroup.Count() == 1 ? "setting" : "settings")</span>
                                     <span class="file-group-path" title="@firstEntry.FilePath">@firstEntry.FilePath</span>
                                     <button class="btn-subtle-icon"

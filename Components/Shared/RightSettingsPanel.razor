@@ -2,53 +2,18 @@
 @using ConfigManager.Models
 
 <div class="settings-panel card">
-    <!-- Category Tabs Navigation -->
-    <div class="category-header">
-        <div class="category-tabs">
-            <button class="cat-tab @(ActiveCategory == ConfigCategory.ConnectionStrings ? "active" : "")"
-                    @onclick="() => ActiveCategory = ConfigCategory.ConnectionStrings">
-                <span>Connection Strings</span>
-                @if (ActiveCategory == ConfigCategory.ConnectionStrings)
-                {
-                    <div class="tab-indicator"></div>
-                }
+    <div class="panel-scroll-content">
+        <!-- Mode Switcher: Structured Parameters vs Raw Find/Replace -->
+        <div class="submode-segment">
+            <button class="segment-btn @(EditMode == "structured" ? "active" : "")"
+                    @onclick='() => EditMode = "structured"'>
+                Parameters (Host, DB, User)
             </button>
-            <button class="cat-tab @(ActiveCategory == ConfigCategory.ClientEndpoints ? "active" : "")"
-                    @onclick="() => ActiveCategory = ConfigCategory.ClientEndpoints">
-                <span>Client Endpoints</span>
-                @if (ActiveCategory == ConfigCategory.ClientEndpoints)
-                {
-                    <div class="tab-indicator"></div>
-                }
-            </button>
-            <button class="cat-tab @(ActiveCategory == ConfigCategory.AppSettings ? "active" : "")"
-                    @onclick="() => ActiveCategory = ConfigCategory.AppSettings">
-                <span>App Settings</span>
-                <span class="cat-soon-badge">Soon</span>
-            </button>
-            <button class="cat-tab @(ActiveCategory == ConfigCategory.EnvironmentVariables ? "active" : "")"
-                    @onclick="() => ActiveCategory = ConfigCategory.EnvironmentVariables">
-                <span>Env Vars</span>
-                <span class="cat-soon-badge">Soon</span>
+            <button class="segment-btn @(EditMode == "raw" ? "active" : "")"
+                    @onclick='() => EditMode = "raw"'>
+                Raw Find &amp; Replace
             </button>
         </div>
-    </div>
-
-    <!-- Category Content -->
-    @if (ActiveCategory == ConfigCategory.ConnectionStrings)
-    {
-        <div class="panel-scroll-content">
-            <!-- Mode Switcher: Structured Parameters vs Raw Find/Replace -->
-            <div class="submode-segment">
-                <button class="segment-btn @(EditMode == "structured" ? "active" : "")"
-                        @onclick='() => EditMode = "structured"'>
-                    Parameters (Host, DB, User)
-                </button>
-                <button class="segment-btn @(EditMode == "raw" ? "active" : "")"
-                        @onclick='() => EditMode = "raw"'>
-                    Raw Find &amp; Replace
-                </button>
-            </div>
 
             @if (EditMode == "structured")
             {
@@ -359,138 +324,6 @@
                 }
             </button>
         </div>
-    }
-    else if (ActiveCategory == ConfigCategory.ClientEndpoints)
-    {
-        <div class="panel-scroll-content">
-            <div class="bulk-form-box">
-                <div class="form-header-group">
-                    <div class="form-title">WCF &amp; CLIENT ENDPOINTS</div>
-                    <div class="form-subtitle">Direct endpoint rewriting for client bindings</div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Find in URL</label>
-                    <input type="text"
-                           class="form-input mono"
-                           placeholder="e.g. localhost or 192.168.43.164"
-                           @bind="EndpointOnlyFind" />
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Replace with</label>
-                    <input type="text"
-                           class="form-input mono"
-                           placeholder="e.g. 192.168.26.21"
-                           @bind="EndpointOnlyReplace" />
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Specific Full URL (Optional)</label>
-                    <input type="text"
-                           class="form-input mono"
-                           placeholder="e.g. http://192.168.26.21/VICTOR/SSO/Service/SSO.asmx"
-                           @bind="EndpointOnlyDirectUrl" />
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Target Endpoint Name (Optional)</label>
-                    <input type="text"
-                           class="form-input mono"
-                           placeholder="e.g. SSOSoap (or blank for all)"
-                           @bind="EndpointOnlyTargetName" />
-                </div>
-
-                <div class="form-actions-group">
-                    <button class="btn-pill-dark btn-apply-full"
-                            @onclick="ApplyEndpointOnly"
-                            disabled="@((string.IsNullOrWhiteSpace(EndpointOnlyFind) && string.IsNullOrWhiteSpace(EndpointOnlyDirectUrl)) || SelectedCount == 0)">
-                        Apply to @SelectedCount Selected
-                    </button>
-                    <button class="btn-pill-subtle btn-clear"
-                            @onclick="ClearEndpointOnly">
-                        Clear
-                    </button>
-                </div>
-            </div>
-
-            <!-- Active Row Inspector for Endpoint -->
-            @if (ActiveEntry != null)
-            {
-                <div class="inspector-section">
-                    <div class="inspector-header">
-                        <span class="inspector-title">ACTIVE ROW INSPECTOR</span>
-                        <button class="btn-link-inspector" @onclick="() => OnInspectModal.InvokeAsync(ActiveEntry)">
-                            Open Full Diff ↗
-                        </button>
-                    </div>
-                    <div class="inspector-specs-table">
-                        <div class="spec-row">
-                            <span class="spec-label">Category</span>
-                            <span class="spec-value">Client Endpoint</span>
-                        </div>
-                        <div class="spec-row">
-                            <span class="spec-label">Name</span>
-                            <span class="spec-value mono">@ActiveEntry.KeyName</span>
-                        </div>
-                        <div class="spec-row">
-                            <span class="spec-label">File</span>
-                            <span class="spec-value mono">@ActiveEntry.FileName</span>
-                        </div>
-                        @if (!string.IsNullOrEmpty(ActiveEntry.ProviderName))
-                        {
-                            <div class="spec-row">
-                                <span class="spec-label">Binding</span>
-                                <span class="spec-value mono">@ActiveEntry.ProviderName</span>
-                            </div>
-                        }
-                        <div class="spec-row">
-                            <span class="spec-label">Address</span>
-                            <span class="spec-value mono truncate" title="@ActiveEntry.CurrentValue">@ActiveEntry.CurrentValue</span>
-                        </div>
-                    </div>
-                </div>
-            }
-        </div>
-
-        <div class="save-dock-bottom">
-            <div class="dock-status-info">
-                <span class="dock-amber-dot"></span>
-                <span class="dock-status-text">
-                    Pending saves: <strong>@ModifiedCount</strong> &bull; Auto-backup enabled
-                </span>
-            </div>
-            <button class="btn-save-emerald"
-                    @onclick="() => OnSaveAllClicked.InvokeAsync()"
-                    disabled="@(ModifiedCount == 0 || IsSaving)">
-                @if (IsSaving)
-                {
-                    <span class="spinner-small-light"></span>
-                    <span>Saving...</span>
-                }
-                else
-                {
-                    <span>Save All Changes (@ModifiedCount)</span>
-                }
-            </button>
-        </div>
-    }
-    else if (ActiveCategory == ConfigCategory.AppSettings)
-    {
-        <div class="panel-scroll-content empty-category-panel">
-            <div class="empty-cat-icon">⚙️</div>
-            <h4>App Settings Category</h4>
-            <p>Future modular configuration category for key-value app settings and JSON nodes.</p>
-        </div>
-    }
-    else
-    {
-        <div class="panel-scroll-content empty-category-panel">
-            <div class="empty-cat-icon">🌐</div>
-            <h4>Environment Variables Category</h4>
-            <p>Future modular configuration category for container and runtime environment variables.</p>
-        </div>
-    }
 </div>
 
 @code {
@@ -506,7 +339,6 @@
     [Parameter] public EventCallback OnSaveAllClicked { get; set; }
     [Parameter] public EventCallback<ConnectionStringEntry> OnInspectModal { get; set; }
 
-    private ConfigCategory ActiveCategory { get; set; } = ConfigCategory.ConnectionStrings;
     private string EditMode { get; set; } = "structured"; // "structured" | "raw"
 
     private StructuredBulkUpdateArgs StructuredArgs { get; set; } = new();
@@ -515,11 +347,6 @@
     private string RawFindText { get; set; } = string.Empty;
     private string RawReplaceWith { get; set; } = string.Empty;
     private bool MatchCase { get; set; } = false;
-
-    private string EndpointOnlyFind { get; set; } = string.Empty;
-    private string EndpointOnlyReplace { get; set; } = string.Empty;
-    private string EndpointOnlyDirectUrl { get; set; } = string.Empty;
-    private string EndpointOnlyTargetName { get; set; } = string.Empty;
 
     private bool IsStructuredEmpty =>
         string.IsNullOrWhiteSpace(StructuredArgs.Server) &&
@@ -549,27 +376,5 @@
     {
         if (string.IsNullOrEmpty(RawFindText)) return;
         await OnApplyRaw.InvokeAsync((RawFindText, RawReplaceWith, MatchCase));
-    }
-
-    private async Task ApplyEndpointOnly()
-    {
-        if (string.IsNullOrWhiteSpace(EndpointOnlyFind) && string.IsNullOrWhiteSpace(EndpointOnlyDirectUrl)) return;
-        var args = new StructuredBulkUpdateArgs
-        {
-            UpdateEndpoints = true,
-            EndpointFindPattern = EndpointOnlyFind,
-            EndpointReplacePattern = EndpointOnlyReplace,
-            EndpointNewAddress = EndpointOnlyDirectUrl,
-            TargetEndpointName = EndpointOnlyTargetName
-        };
-        await OnApplyStructured.InvokeAsync(args);
-    }
-
-    private void ClearEndpointOnly()
-    {
-        EndpointOnlyFind = string.Empty;
-        EndpointOnlyReplace = string.Empty;
-        EndpointOnlyDirectUrl = string.Empty;
-        EndpointOnlyTargetName = string.Empty;
     }
 }

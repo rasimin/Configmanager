@@ -28,6 +28,17 @@ public class ConnectionStringEntry
     public string FilePath { get; set; } = string.Empty;
     public string FileName => System.IO.Path.GetFileName(FilePath);
     public string DirectoryPath => System.IO.Path.GetDirectoryName(FilePath) ?? string.Empty;
+    public string FolderName
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(FilePath)) return string.Empty;
+            var dir = System.IO.Path.GetDirectoryName(FilePath);
+            if (string.IsNullOrWhiteSpace(dir)) return string.Empty;
+            var folder = System.IO.Path.GetFileName(dir.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+            return string.IsNullOrWhiteSpace(folder) ? dir : folder;
+        }
+    }
     public ConfigFileType FileType { get; set; }
     public ConfigCategory Category { get; set; } = ConfigCategory.ConnectionStrings;
     public string KeyName { get; set; } = string.Empty;

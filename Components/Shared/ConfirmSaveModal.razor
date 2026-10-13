@@ -58,6 +58,7 @@
                         {
                             var filePath = group.Key;
                             var fileName = System.IO.Path.GetFileName(filePath);
+                            var folderName = group.First().FolderName;
                             var isXml = group.First().FileType == ConfigFileType.WebConfig;
 
                             <div class="file-preview-item">
@@ -65,7 +66,7 @@
                                     <span class="file-type-pill @(isXml ? "pill-xml" : "pill-json")">
                                         @(isXml ? "XML" : "JSON")
                                     </span>
-                                    <strong class="file-name">@fileName</strong>
+                                    <strong class="file-name">@fileName@(!string.IsNullOrEmpty(folderName) ? $" - {folderName}" : "")</strong>
                                     <span class="file-dir text-muted">@System.IO.Path.GetDirectoryName(filePath)</span>
                                 </div>
                                 <div class="file-preview-keys">

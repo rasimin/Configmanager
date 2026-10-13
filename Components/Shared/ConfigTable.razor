@@ -67,20 +67,6 @@
         </div>
 
         <div class="toolbar-right">
-            <!-- View Mode Switcher -->
-            <div class="view-mode-toggle">
-                <button class="view-toggle-btn @(IsDetailedView ? "active" : "")"
-                        @onclick="() => IsDetailedView = true"
-                        title="Stacked Diff View">
-                    <span>Stacked Diff</span>
-                </button>
-                <button class="view-toggle-btn @(!IsDetailedView ? "active" : "")"
-                        @onclick="() => IsDetailedView = false"
-                        title="Compact View">
-                    <span>Compact</span>
-                </button>
-            </div>
-
             <!-- Selection Shortcuts -->
             <div class="selection-actions-links">
                 <button class="link-btn" @onclick="SelectAll">Select All</button>
@@ -107,7 +93,7 @@
                     }
                 </span>
 
-                @if (IsDetailedView && GroupedEntries.Any())
+                @if (GroupedEntries.Any())
                 {
                     <span class="summary-pending-dot">•</span>
                     <div class="accordion-controls-group">
@@ -163,7 +149,7 @@
                 }
             </div>
         }
-        else if (IsDetailedView)
+        else
         {
             <!-- ==============================================================
                  GROUPED STACKED DIFF CARD VIEW WITH ACCORDION COLLAPSE
@@ -401,180 +387,6 @@
                 }
             </div>
         }
-        else
-        {
-            <!-- ==============================================================
-                 COMPACT TABLE VIEW
-                 ============================================================== -->
-            <table class="config-table">
-                <thead>
-                    <tr>
-                        <th class="th-checkbox">
-                            <input type="checkbox"
-                                   class="checkbox-custom"
-                                   checked="@IsAllFilteredSelected"
-                                   @onchange="ToggleSelectAllFiltered" />
-                        </th>
-                        <th class="th-file">Setting / Key</th>
-                        <th class="th-type">Type</th>
-                        <th class="th-key">Key Name</th>
-                        <th class="th-current">Current Value</th>
-                        <th class="th-preview">Preview New Value</th>
-                        <th class="th-status">Status</th>
-                        <th class="th-actions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var fileGroup in GroupedEntries)
-                    {
-                        var firstEntry = fileGroup.First();
-                        var isAllSelected = fileGroup.All(e => e.IsSelected);
-                        var groupStatus = GetGroupStatus(fileGroup);
-
-                        <tr class="table-group-header-row">
-                            <td class="td-checkbox" @onclick:stopPropagation="true">
-                                <input type="checkbox"
-                                       class="checkbox-custom"
-                                       checked="@isAllSelected"
-                                       @onchange="(e) => ToggleFileSelection(fileGroup.Key, (bool?)e.Value ?? false)" />
-                            </td>
-                            <td colspan="7" class="td-group-header">
-                                <div class="group-header-content">
-                                    <span class="file-group-name">
-                                        @firstEntry.FileName
-                                        @if (!string.IsNullOrEmpty(firstEntry.FolderName))
-                                        {
-                                            <span class="file-folder-sep"> - </span>
-                                            <span class="file-folder-name">@firstEntry.FolderName</span>
-                                        }
-                                    </span>
-                                    <span class="item-count-badge">@fileGroup.Count() @(fileGroup.Count() == 1 ? "setting" : "settings")</span>
-                                    <span class="file-group-path" title="@firstEntry.FilePath">@firstEntry.FilePath</span>
-                                    <button class="btn-subtle-icon"
-                                            @onclick="() => OnOpenFolder.InvokeAsync(firstEntry.FilePath)"
-                                            title="Open folder in Explorer">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                            <polyline points="15 3 21 3 21 9"></polyline>
-                                            <line x1="10" y1="14" x2="21" y2="3"></line>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        @foreach (var entry in fileGroup)
-                        {
-                            var isModified = entry.Status == ConfigEntryStatus.Modified;
-                            var isSaved = entry.Status == ConfigEntryStatus.Saved;
-
-                            <tr class="table-row @(entry.IsSelected ? "row-selected" : "") @(isModified ? "row-modified" : "") @(isSaved ? "row-saved" : "") @(ActiveEntry?.Id == entry.Id ? "row-active" : "")"
-                                @onclick="() => OnRowSelected.InvokeAsync(entry)">
-                                <td class="td-checkbox" @onclick:stopPropagation="true">
-                                    <input type="checkbox"
-                                           class="checkbox-custom"
-                                           @bind="entry.IsSelected"
-                                           @bind:after="NotifySelectionChange" />
-                                </td>
-
-                                <td class="td-file">
-                                    <span class="file-sub-item">↳ @entry.KeyName</span>
-                                </td>
-
-                                <td class="td-type">
-                                    @if (entry.Category == ConfigCategory.ClientEndpoints)
-                                    {
-                                        <span class="badge-type-endpoint">Endpoint</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge-type-db">DB String</span>
-                                    }
-                                    @if (!string.IsNullOrEmpty(entry.ProviderName))
-                                    {
-                                        <div class="provider-type-text" title="@entry.ProviderName">@entry.ProviderName</div>
-                                    }
-                                </td>
-
-                                <td class="td-key">
-                                    <span class="key-name-text" title="@entry.KeyName">@entry.KeyName</span>
-                                </td>
-
-                                <td class="td-current">
-                                    <div class="code-cell">
-                                        <span class="mono" title="@entry.CurrentValue">@entry.CurrentValue</span>
-                                        <button class="btn-copy-code" @onclick="() => CopyText(entry.CurrentValue)" title="Copy Current Value">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </td>
-
-                                <td class="td-preview">
-                                    @if (entry.IsInlineEditing)
-                                    {
-                                        <div class="inline-edit-box">
-                                            <input type="text"
-                                                   class="inline-input mono"
-                                                   @bind="entry.NewValue" />
-                                            <button class="btn-pill-dark btn-xs" @onclick="() => SaveInlineEdit(entry)">Done</button>
-                                            <button class="btn-pill-subtle btn-xs" @onclick="() => CancelInlineEdit(entry)">Cancel</button>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="preview-cell @(isModified ? "preview-modified" : "")"
-                                             @onclick="() => StartInlineEdit(entry)">
-                                            <span class="mono">
-                                                @if (isModified)
-                                                {
-                                                    @HighlightDiff(entry.CurrentValue, entry.NewValue)
-                                                }
-                                                else
-                                                {
-                                                    @entry.NewValue
-                                                }
-                                            </span>
-                                        </div>
-                                    }
-                                </td>
-
-                                <td class="td-status">
-                                    <StatusBadge Status="@entry.Status" ErrorMessage="@entry.ErrorMessage" />
-                                </td>
-
-                                <td class="td-actions">
-                                    <div class="action-btn-group">
-                                        <button class="btn-subtle-icon"
-                                                @onclick="() => OnInspectEntry.InvokeAsync(entry)"
-                                                title="Inspect Diff">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <circle cx="11" cy="11" r="8"></circle>
-                                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                            </svg>
-                                        </button>
-
-                                        @if (entry.Status == ConfigEntryStatus.Modified)
-                                        {
-                                            <button class="btn-subtle-icon btn-revert"
-                                                    @onclick="() => OnRevertEntry.InvokeAsync(entry)"
-                                                    title="Revert">
-                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                    <polyline points="1 4 1 10 7 10"></polyline>
-                                                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                                                </svg>
-                                            </button>
-                                        }
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    }
-                </tbody>
-            </table>
-        }
     </div>
 </div>
 
@@ -587,7 +399,6 @@
     [Parameter] public EventCallback<string> OnOpenFolder { get; set; }
     [Parameter] public EventCallback OnSelectionChanged { get; set; }
 
-    private bool IsDetailedView { get; set; } = true;
     private string FilterSearchText { get; set; } = string.Empty;
     private ConfigEntryStatus? StatusFilter { get; set; }
     private ConfigCategory? CategoryFilter { get; set; }
@@ -688,19 +499,6 @@
         {
             await OnRevertEntry.InvokeAsync(entry);
         }
-    }
-
-    private bool IsAllFilteredSelected =>
-        FilteredEntries.Count > 0 && FilteredEntries.All(e => e.IsSelected);
-
-    private async Task ToggleSelectAllFiltered(ChangeEventArgs e)
-    {
-        var isChecked = (bool?)e.Value ?? false;
-        foreach (var entry in FilteredEntries)
-        {
-            entry.IsSelected = isChecked;
-        }
-        await NotifySelectionChange();
     }
 
     private async Task SelectAll()

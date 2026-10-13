@@ -104,7 +104,7 @@ D:\Rasimin\Learn\SetConfigNetCore\
 
 ### C. 2-Panel Workspace & Right Settings Panel (Categorized)
 1. **Layout 2-Panel:**
-   - **Panel Kiri (Main Workspace):** Command bar scanner, list antrian target, dan tampilan data konfigurasi dengan sistem **Pengelompokan Per File (File Grouping)** pada **Stacked Diff Card View** (default) serta opsi beralih ke **Compact Table View**.
+   - **Panel Kiri (Main Workspace):** Command bar scanner, list antrian target, dan tampilan data konfigurasi dengan sistem **Pengelompokan Per File (File Grouping)** pada **Stacked Diff Card View**.
    - **Panel Kanan (Settings & Inspector):** Panel pengaturan modular berbasis kategori.
 2. **Pengelompokan Entri Per File (File Grouping View - Mengatasi Duplikasi Path):**
    - **Satu Kontainer File Terpadu:** Setting yang berada di dalam file fisik yang sama (misal satu `Web.config` yang memiliki Connection String dan WCF Endpoint, atau satu `appsettings.json` yang memiliki `DefaultConnection` dan `SSOLib_SvcEndPoint`/`SSOLib_ApiEndPoint`) kini secara otomatis dikelompokkan dalam satu kartu file (`.file-group-card`), bukan lagi terpisah menjadi kartu ganda yang membingungkan.
@@ -120,7 +120,6 @@ D:\Rasimin\Learn\SetConfigNetCore\
      - **Baris Atas (`BEFORE`):** Menampilkan nilai original dengan tombol copy.
      - **Baris Bawah (`AFTER` / `PREVIEW`):** Menampilkan nilai baru dengan badge highlight amber dan tombol inline edit langsung.
      - **Horizontal Scrollable Code:** Masing-masing baris kode Before dan After dapat di-scroll ke kanan secara independen untuk melihat string koneksi/URL panjang.
-   - **Pengelompokan Pada Compact Table View:** Pada mode Compact Table, baris-baris setting juga dikelompokkan dengan subheader baris file (`.table-group-header-row`) yang memuat nama file, counter, dan path direktori.
 3. **Form Replacement Panel Terpadu (Direct Replacement Form):**
    - Panel kanan langsung menampilkan form override konfigurasi terpadu (Connection Strings & Client Endpoints) tanpa bilah tab kategori terpisah, sehingga pengguna dapat langsung melakukan perubahan parameter maupun Raw Find & Replace.
    - Mendeteksi dan mengelola tag WCF `<system.serviceModel><client><endpoint address="..." />` pada `web.config` **DAN** endpoint layanan JSON pada `appsettings.json` (seperti `SSOLib_SvcEndPoint`, `SSOLib_ApiEndPoint` pada `SSOLibConfigs`).
